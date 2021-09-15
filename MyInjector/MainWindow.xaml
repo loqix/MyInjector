@@ -5,8 +5,33 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MyInjector"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
-        
+        Title="MyInjector" Height="200" Width="600">
+    <Grid Background="white">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="auto"/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/>
+                <ColumnDefinition Width="auto"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition/>
+            </Grid.RowDefinitions>
+            <ComboBox Name="cbx_process_list" Grid.Row="0" Grid.Column="0" Margin="2" DropDownOpened="cbx_process_list_DropDownOpened" ItemsSource="{Binding Path=ProcessList, Mode=OneWay}"/>
+            <Label Name="widget_process_finder" Content="Drag"  Grid.Row="0" Grid.Column="1" Margin="2"/>
+            <TextBox Text="&lt;Your dll path here>" Grid.Row="1" Grid.Column="0" Margin="2"/>
+            <Button Content="Open" Grid.Row="1" Grid.Column="1" Margin="2"/>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Label Content="NOT IMPLEMENTED" Foreground="Red" HorizontalAlignment="Center" VerticalAlignment="Center" Name="label_test"/>
+        </Grid>
+
+
+
     </Grid>
 </Window>
