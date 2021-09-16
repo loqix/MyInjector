@@ -29,8 +29,6 @@ namespace MyInjector
             InitializeComponent();
             ComboBox_ProcessList.DataContext = processListSource;
             SetTextboxPlaceholder(TextBox_DllPath, dllPath_PlaceholderText);
-
-            WindowFramePainter.Start();
         }
 
         private void ComboBox_ProcessList_DropDownOpened(object sender, EventArgs e)
@@ -104,6 +102,25 @@ namespace MyInjector
                 TextBox_DllPath.Text = dialog.FileName;
             }
         }
+
+        private void Widget_ProcessFinder_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            Widget_ProcessFinder.CaptureMouse();
+            WindowFramePainter.Start();
+        }
+
+        private void Widget_ProcessFinder_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            Widget_ProcessFinder.ReleaseMouseCapture();
+            string data = WindowFramePainter.Stop();
+            ComboBox_ProcessList.SelectedItem = data;
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            Environment.Exit(0);
+            base.OnClosed(e);
+        }
     }
 
     public class ProcessListSource
@@ -135,30 +152,56 @@ namespace MyInjector
     {
         public static void DrawRectangleAtPos(Point topLeft, Point buttomRight)
         {
-            marker = new MarkerWindow
+
+            Application.Current.Dispatcher.Invoke(() =>
             {
-                Height = buttomRight.Y - topLeft.Y,
-                Width = buttomRight.X - topLeft.X,
-                Left = topLeft.X,
-                Top = topLeft.Y
-            };
-            marker.Show();
+                marker = new MarkerWindow
+                {
+                    Height = buttomRight.Y - topLeft.Y,
+                    Width = buttomRight.X - topLeft.X,
+                    Left = topLeft.X,
+                    Top = topLeft.Y
+                };
+                marker.Show();
+            });
+
         }
 
         public static void Clear()
         {
-            marker.Close();
+            if (marker != null)
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    marker.Close();
+                });
+            }
             marker = null;
         }
 
         public static void Start()
         {
-
+            exitFlag = false;
+            currentWindowHandle = IntPtr.Zero;
+            painterThread = new Thread(() =>
+            {
+                Worker();
+            });
+            painterThread.Start();
         }
 
-        public static void Stop()
+        public static string Stop()
         {
-            ;
+            exitFlag = true;
+            painterThread = null;
+
+            Process selectedProcess = CurrentProcess;
+            if (selectedProcess == null)
+            {
+                return null;
+            }
+            currentWindowHandle = IntPtr.Zero;
+            return String.Format("{0}\t{1}", selectedProcess.Id, selectedProcess.ProcessName);
         }
 
         private static void Worker()
@@ -167,25 +210,47 @@ namespace MyInjector
             {
                 Thread.Sleep(200);
 
-                NativePoint point;
-                point.x = 200;
-                point.y = 200;
-                var window = WindowFromPoint(point);
-                RECT rect;
-                GetWindowRect(window, out rect);
-
+                if (!GetCursorPos(out NativePoint point))
+                {
+                    currentWindowHandle = IntPtr.Zero;
+                    continue;
+                }
+                var handle = WindowFromPoint(point);
+                if (handle == currentWindowHandle)
+                {
+                    continue;
+                }
+                currentWindowHandle = handle;
+                if (!GetWindowRect(currentWindowHandle, out RECT rect))
+                {
+                    currentWindowHandle = IntPtr.Zero;
+                    continue;
+                }
                 Point topleft = new Point(rect.Left, rect.Top);
                 Point buttomright = new Point(rect.Right, rect.Bottom);
+                Clear();
                 DrawRectangleAtPos(topleft, buttomright);
             }
+            Clear();
         }
 
-        public static Process CurrentProcess { get; private set; }
+        public static Process CurrentProcess
+        {
+            get 
+            {
+                if (currentWindowHandle == IntPtr.Zero)
+                {
+                    return null;
+                }
+                GetWindowThreadProcessId(currentWindowHandle, out uint processId);
+                return Process.GetProcessById((int)processId);
+            }
+        }
 
         private static bool exitFlag = false;
         private static MarkerWindow marker = null;
         private static Thread painterThread = null;
-        private static Int64 currentWindowHandle = 0;
+        private static IntPtr currentWindowHandle = IntPtr.Zero;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct RECT
@@ -208,5 +273,12 @@ namespace MyInjector
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool GetWindowRect(IntPtr hwnd, out RECT lpRect);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetCursorPos(out NativePoint lpPoint);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
     }
 }
