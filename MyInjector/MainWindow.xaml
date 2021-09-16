@@ -21,10 +21,10 @@
                 <RowDefinition/>
                 <RowDefinition/>
             </Grid.RowDefinitions>
-            <ComboBox Name="cbx_process_list" Grid.Row="0" Grid.Column="0" Margin="2" DropDownOpened="cbx_process_list_DropDownOpened" ItemsSource="{Binding Path=ProcessList, Mode=OneWay}"/>
-            <Label Name="widget_process_finder" Content="Drag"  Grid.Row="0" Grid.Column="1" Margin="2"/>
-            <TextBox Text="&lt;Your dll path here>" Grid.Row="1" Grid.Column="0" Margin="2"/>
-            <Button Content="Open" Grid.Row="1" Grid.Column="1" Margin="2"/>
+            <ComboBox Name="ComboBox_ProcessList" Grid.Row="0" Grid.Column="0" Margin="2" DropDownOpened="ComboBox_ProcessList_DropDownOpened" ItemsSource="{Binding Path=ProcessList, Mode=OneWay}"/>
+            <Label Name="Widget_ProcessFinder" Content="Drag"  Grid.Row="0" Grid.Column="1" Margin="2"/>
+            <TextBox Grid.Row="1" Grid.Column="0" Margin="2" PreviewDragOver="TextBox_DllPath_PreviewDragOver" Name="TextBox_DllPath" GotFocus="TextBox_DllPath_GotFocus" LostFocus="TextBox_DllPath_LostFocus"/>
+            <Button Name="Button_OpenDll" Content="Open" Grid.Row="1" Grid.Column="1" Margin="2" Click="Button_OpenDll_Click"/>
         </Grid>
 
         <Grid Grid.Row="1">
