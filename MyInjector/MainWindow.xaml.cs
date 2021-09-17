@@ -16,6 +16,7 @@ using System.Diagnostics;
 using Microsoft.Win32;
 using System.Threading;
 using System.Runtime.InteropServices;
+using System.Windows.Interop;
 
 namespace MyInjector
 {
@@ -106,14 +107,19 @@ namespace MyInjector
         private void Widget_ProcessFinder_MouseDown(object sender, MouseButtonEventArgs e)
         {
             Widget_ProcessFinder.CaptureMouse();
-            WindowFramePainter.Start();
+            WindowFramePainter.Start((Process p) =>
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ComboBox_ProcessList.SelectedItem = String.Format("{0}\t{1}", p.Id, p.ProcessName);
+                });
+            });
         }
 
         private void Widget_ProcessFinder_MouseUp(object sender, MouseButtonEventArgs e)
         {
             Widget_ProcessFinder.ReleaseMouseCapture();
-            string data = WindowFramePainter.Stop();
-            ComboBox_ProcessList.SelectedItem = data;
+            WindowFramePainter.Stop();
         }
 
         protected override void OnClosed(EventArgs e)
@@ -150,21 +156,34 @@ namespace MyInjector
 
     public static class WindowFramePainter
     {
-        public static void DrawRectangleAtPos(Point topLeft, Point buttomRight)
+        /// <summary>
+        /// Draw a rectange in screen, using windows cordinate system
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
+        public static void DrawRectangleAtPos(int x, int y, int width, int height)
         {
-
             Application.Current.Dispatcher.Invoke(() =>
             {
-                marker = new MarkerWindow
+                marker = new MarkerWindow()
                 {
-                    Height = buttomRight.Y - topLeft.Y,
-                    Width = buttomRight.X - topLeft.X,
-                    Left = topLeft.X,
-                    Top = topLeft.Y
-                };
+                    // We cannot specify our marker window position and size here, because wpf is using a different cordinate system.
+                    // If the DPI setting in windows is not 100%, wpf's cordinate system will differ from windows native
+                    //Top = 0,
+                    //Left = 0,
+                    //Width = 0,
+                    //Height = 0
+                };            
+                var helper = new WindowInteropHelper(marker);
+                helper.EnsureHandle();
+                var handle = helper.Handle;
+                // use windows api to move to a proper position, regardless of system DPI setting
+                SetWindowPos(handle, (IntPtr)(-1), x, y, width, height, 0x0080); // 0x0080 => Hidden
+                // finally, init the window and show it 
                 marker.Show();
             });
-
         }
 
         public static void Clear()
@@ -179,8 +198,9 @@ namespace MyInjector
             marker = null;
         }
 
-        public static void Start()
+        public static void Start(ProcessFound processFoundCallback)
         {
+            callback = processFoundCallback;
             exitFlag = false;
             currentWindowHandle = IntPtr.Zero;
             painterThread = new Thread(() =>
@@ -190,18 +210,11 @@ namespace MyInjector
             painterThread.Start();
         }
 
-        public static string Stop()
+        public static void Stop()
         {
             exitFlag = true;
             painterThread = null;
-
-            Process selectedProcess = CurrentProcess;
-            if (selectedProcess == null)
-            {
-                return null;
-            }
             currentWindowHandle = IntPtr.Zero;
-            return String.Format("{0}\t{1}", selectedProcess.Id, selectedProcess.ProcessName);
         }
 
         private static void Worker()
@@ -225,11 +238,11 @@ namespace MyInjector
                 {
                     currentWindowHandle = IntPtr.Zero;
                     continue;
-                }
-                Point topleft = new Point(rect.Left, rect.Top);
-                Point buttomright = new Point(rect.Right, rect.Bottom);
+                }      
                 Clear();
-                DrawRectangleAtPos(topleft, buttomright);
+                DrawRectangleAtPos(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+
+                callback?.Invoke(CurrentProcess);
             }
             Clear();
         }
@@ -251,9 +264,11 @@ namespace MyInjector
         private static MarkerWindow marker = null;
         private static Thread painterThread = null;
         private static IntPtr currentWindowHandle = IntPtr.Zero;
+        private static ProcessFound callback;
+        public delegate void ProcessFound(Process p);
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct RECT
+        public struct RECT
         {
             public int Left;        // x position of upper-left corner
             public int Top;         // y position of upper-left corner
@@ -262,7 +277,7 @@ namespace MyInjector
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct NativePoint
+        public struct NativePoint
         {
             public int x;
             public int y; 
@@ -280,5 +295,8 @@ namespace MyInjector
 
         [DllImport("user32.dll", SetLastError = true)]
         static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, int uFlags);
     }
 }

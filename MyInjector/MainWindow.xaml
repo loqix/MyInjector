@@ -21,7 +21,7 @@
                 <RowDefinition/>
                 <RowDefinition/>
             </Grid.RowDefinitions>
-            <ComboBox Name="ComboBox_ProcessList" Grid.Row="0" Grid.Column="0" Margin="2" DropDownOpened="ComboBox_ProcessList_DropDownOpened" ItemsSource="{Binding Path=ProcessList, Mode=OneWay}"/>
+            <ComboBox Name="ComboBox_ProcessList" Grid.Row="0" Grid.Column="0" Margin="2" DropDownOpened="ComboBox_ProcessList_DropDownOpened" ItemsSource="{Binding Path=ProcessList, Mode=OneWay}" VerticalContentAlignment="Center"/>
             <Label Name="Widget_ProcessFinder" Content="Drag"  Grid.Row="0" Grid.Column="1" Margin="2" MouseDown="Widget_ProcessFinder_MouseDown" MouseUp="Widget_ProcessFinder_MouseUp"/>
             <TextBox Grid.Row="1" Grid.Column="0" Margin="2" PreviewDragOver="TextBox_DllPath_PreviewDragOver" Name="TextBox_DllPath" GotFocus="TextBox_DllPath_GotFocus" LostFocus="TextBox_DllPath_LostFocus"/>
             <Button Name="Button_OpenDll" Content="Open" Grid.Row="1" Grid.Column="1" Margin="2" Click="Button_OpenDll_Click"/>
