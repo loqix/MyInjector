@@ -21,7 +21,15 @@
                 <RowDefinition/>
                 <RowDefinition/>
             </Grid.RowDefinitions>
-            <ComboBox Name="ComboBox_ProcessList" Grid.Row="0" Grid.Column="0" Margin="2" DropDownOpened="ComboBox_ProcessList_DropDownOpened" ItemsSource="{Binding Path=ProcessList, Mode=OneWay}" VerticalContentAlignment="Center"/>
+
+            <Grid Grid.Row="0" Grid.Column="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="auto"/>
+                </Grid.ColumnDefinitions>
+                <ComboBox Name="ComboBox_ProcessList" Grid.Column="0" Margin="2" DropDownOpened="ComboBox_ProcessList_DropDownOpened" ItemsSource="{Binding Path=ProcessList, Mode=OneWay}" VerticalContentAlignment="Center"/>
+                <TextBox Name="TextBox_ProcessFilter" Grid.Column="1" MinWidth="60" MaxWidth="200" Margin="2" GotFocus="TextBox_ProcessFilter_GotFocus" LostFocus="TextBox_ProcessFilter_LostFocus" VerticalContentAlignment="Center"/>
+            </Grid>
             <Label Name="Widget_ProcessFinder" Content="Finder"  Grid.Row="0" Grid.Column="1" Margin="2" MouseDown="Widget_ProcessFinder_MouseDown" MouseUp="Widget_ProcessFinder_MouseUp"/>
             <TextBox Grid.Row="1" Grid.Column="0" Margin="2" PreviewDragOver="TextBox_DllPath_PreviewDragOver" Name="TextBox_DllPath" GotFocus="TextBox_DllPath_GotFocus" LostFocus="TextBox_DllPath_LostFocus"/>
             <Button Name="Button_OpenDll" Content="Open" Grid.Row="1" Grid.Column="1" Margin="2" Click="Button_OpenDll_Click"/>

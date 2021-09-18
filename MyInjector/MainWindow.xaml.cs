@@ -30,11 +30,16 @@ namespace MyInjector
             InitializeComponent();
             ComboBox_ProcessList.DataContext = processListSource;
             SetTextboxPlaceholder(TextBox_DllPath, dllPath_PlaceholderText);
+            SetTextboxPlaceholder(TextBox_ProcessFilter, processFilter_PlaceholderText);
         }
 
         private void ComboBox_ProcessList_DropDownOpened(object sender, EventArgs e)
         {
-            ComboBox_ProcessList.GetBindingExpression(ComboBox.ItemsSourceProperty).UpdateTarget();
+            // set filter
+            processListSource.ProcessFilter = TextBox_ProcessFilter.Text == processFilter_PlaceholderText ? null : TextBox_ProcessFilter.Text;
+
+            // refresh data source
+            ComboBox_ProcessList.GetBindingExpression(ItemsControl.ItemsSourceProperty).UpdateTarget();
         }
 
         private ProcessListSource processListSource = new ProcessListSource();
@@ -67,6 +72,7 @@ namespace MyInjector
         }
 
         private readonly string dllPath_PlaceholderText = "Drag and drop your dll file here";
+        private readonly string processFilter_PlaceholderText = "Process Filter";
 
         private void TextBox_DllPath_GotFocus(object sender, RoutedEventArgs e)
         {
@@ -127,10 +133,31 @@ namespace MyInjector
             Environment.Exit(0);
             base.OnClosed(e);
         }
+
+        private void TextBox_ProcessFilter_GotFocus(object sender, RoutedEventArgs e)
+        {
+            var self = sender as TextBox;
+            if (self.Text.Equals(processFilter_PlaceholderText))
+            {
+                self.Text = "";
+                self.Foreground = Brushes.Black;
+            }
+        }
+
+        private void TextBox_ProcessFilter_LostFocus(object sender, RoutedEventArgs e)
+        {
+            var self = sender as TextBox;
+            if (self.Text.Length == 0)
+            {
+                SetTextboxPlaceholder(self, processFilter_PlaceholderText);
+            }
+        }
     }
 
     public class ProcessListSource
     {
+        public string ProcessFilter { get; set; } = null;
+
         public IEnumerable<string> ProcessList
         {
             get
@@ -147,6 +174,15 @@ namespace MyInjector
                     var pid = process.Id;
                     var pname = process.ProcessName;
                     var content = String.Format("{0}\t{1}", pid, pname);
+
+                    if (ProcessFilter != null && ProcessFilter != "")
+                    {
+                        if (content.IndexOf(ProcessFilter) == -1)
+                        {
+                            continue;
+                        }
+                    }
+
                     ret.Add(content);
                 }
                 return ret;
@@ -280,7 +316,7 @@ namespace MyInjector
         public struct NativePoint
         {
             public int x;
-            public int y; 
+            public int y;
         }
 
         [DllImport("user32.dll")]
