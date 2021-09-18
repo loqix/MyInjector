@@ -22,13 +22,18 @@
                 <RowDefinition/>
             </Grid.RowDefinitions>
             <ComboBox Name="ComboBox_ProcessList" Grid.Row="0" Grid.Column="0" Margin="2" DropDownOpened="ComboBox_ProcessList_DropDownOpened" ItemsSource="{Binding Path=ProcessList, Mode=OneWay}" VerticalContentAlignment="Center"/>
-            <Label Name="Widget_ProcessFinder" Content="Drag"  Grid.Row="0" Grid.Column="1" Margin="2" MouseDown="Widget_ProcessFinder_MouseDown" MouseUp="Widget_ProcessFinder_MouseUp"/>
+            <Label Name="Widget_ProcessFinder" Content="Finder"  Grid.Row="0" Grid.Column="1" Margin="2" MouseDown="Widget_ProcessFinder_MouseDown" MouseUp="Widget_ProcessFinder_MouseUp"/>
             <TextBox Grid.Row="1" Grid.Column="0" Margin="2" PreviewDragOver="TextBox_DllPath_PreviewDragOver" Name="TextBox_DllPath" GotFocus="TextBox_DllPath_GotFocus" LostFocus="TextBox_DllPath_LostFocus"/>
             <Button Name="Button_OpenDll" Content="Open" Grid.Row="1" Grid.Column="1" Margin="2" Click="Button_OpenDll_Click"/>
         </Grid>
 
         <Grid Grid.Row="1">
-            <Label Content="NOT IMPLEMENTED" Foreground="Red" HorizontalAlignment="Center" VerticalAlignment="Center" Name="label_test"/>
+            <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition Height="auto"/>
+            </Grid.RowDefinitions>
+            <Button Grid.Row="1" Name="Button_ConfirmInjection" Content="Confirm" HorizontalAlignment="Right" Margin="2"/>
+            <Label Content="Not Implemented" Foreground="Red" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="20"/>
         </Grid>
 
 
