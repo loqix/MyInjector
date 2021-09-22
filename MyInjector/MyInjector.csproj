@@ -72,10 +72,17 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="MethodNode.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="MarkerWindow.xaml.cs">
       <DependentUpon>MarkerWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="MethodNode.xaml.cs">
+      <DependentUpon>MethodNode.xaml</DependentUpon>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>

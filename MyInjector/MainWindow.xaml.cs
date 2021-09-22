@@ -31,6 +31,8 @@ namespace MyInjector
             ComboBox_ProcessList.DataContext = processListSource;
             SetTextboxPlaceholder(TextBox_DllPath, dllPath_PlaceholderText);
             SetTextboxPlaceholder(TextBox_ProcessFilter, processFilter_PlaceholderText);
+
+            InitMajorNode();
         }
 
         private void ComboBox_ProcessList_DropDownOpened(object sender, EventArgs e)
@@ -54,6 +56,20 @@ namespace MyInjector
         private string GetTargetDllPath()
         {
             return TextBox_DllPath.Text;
+        }
+
+        private void InitMajorNode()
+        {
+            Node_Major.Init(Injection.InjectionMethodManager.MajorNode);
+            Node_Major.MethodSelected += Node_Major_MethodSelected;
+            // TODO: fire a methodselected event 
+        }
+
+        private void Node_Major_MethodSelected(object sender, RoutedEventArgs e)
+        {
+            var node = sender as MethodNode;
+            var major_method = node.Node.Candidates[node.Methods.SelectedIndex];
+            Debug.WriteLine(major_method);
         }
 
         private void TextBox_DllPath_PreviewDragOver(object sender, DragEventArgs e)

@@ -6,77 +6,143 @@ using System.Threading.Tasks;
 
 namespace MyInjector.Injection
 {
-    public class InjectionDetail
+    public class InjectionNode
     {
         public string Name { get; set; }
-        public string Description { get; set; }
-        public string[] Candidates { get; set; }
+        public CandidateMethod[] Candidates { get; set; }
+        public int DefaultCandidate { get; set; } = 0;
     }
 
-    public class InjectionMethodDescriptor
-    {
+    public class CandidateMethod
+    { 
         public string Name { get; set; }
         public string Description { get; set; }
-        public InjectionDetail[] Details { get; set; }
+    }
+
+    public class MajorMethod : CandidateMethod
+    {
+        public InjectionNode[] MinorNodes { get; set; }
+    }
+
+    public class MajorNode : InjectionNode
+    { 
+        public MajorMethod[] MajorCandidates
+        {
+            get
+            {
+                return Candidates as MajorMethod[];
+            }
+        }
     }
 
     public static class InjectionMethodManager
     {
-        public static InjectionMethodDescriptor[] GetInjectionMethods()
+        public static MajorNode MajorNode
         {
-            List<InjectionMethodDescriptor> ret = new List<InjectionMethodDescriptor>();
+            get
+            {
+                if (_majorNode is null)
+                {
+                    InitNodes();
+                }
+                return _majorNode;
+            }
+        }
 
-            // 'IM' is short for 'Injection Method'
-            // "DE" stands for "Injection Detail"
-            InjectionDetail DE_ProcessAccess = new InjectionDetail
+        public static void InitNodes()
+        {
+            CandidateMethod ProcessAccess_OpenProcess = new CandidateMethod
             {
-                Name = "ProcessAccess",
-                Description = "Method by which we access a process.",
-                Candidates = new string[] { "Open Process", "Steal Token", "Kernel" }
+                Name = "OpenProcess",
+                Description = "Get process handle by OpenProcess()."
             };
-            InjectionDetail DE_EntryPoint = new InjectionDetail
+            CandidateMethod ProcessAccess_StealToken = new CandidateMethod
             {
-                Name = "EntryPoint",
-                Description = "Code entry point in host process.",
-                Candidates = new string[] { "LoadLibrary", "LdrLoadDll", "Manual Load" }
+                Name = "Duplicate Handle",
+                Description = "Get process handle by duplicate a handle from another process."
             };
-            InjectionDetail DE_GainExecution = new InjectionDetail
+            CandidateMethod ProcessAccess_Kernel = new CandidateMethod
             {
-                Name = "GainExecution",
-                Description = "Method by which we transfer control flow to our code.",
-                Candidates = new string[] { "CreateRemoteThread", "QueueUserAPC", "InstrumentCallback" }
+                Name = "Kernel",
+                Description = "Access to target process by the assistance from kernel module."
+            };
+            InjectionNode Node_ProcessAccess = new InjectionNode
+            {
+                Name = "Process Access",
+                Candidates = new CandidateMethod[] { ProcessAccess_OpenProcess, ProcessAccess_StealToken, ProcessAccess_Kernel }
             };
 
-            var IM_Common = new InjectionMethodDescriptor()
+            CandidateMethod EntryPoint_LoadLibrary = new CandidateMethod
+            {
+                Name = "LoadLibrary",
+                Description = "Entry point: LoadLibrary()."
+            };
+            CandidateMethod EntryPoint_LdrLoadDll = new CandidateMethod
+            {
+                Name = "LdrLoadDll",
+                Description = "Entry point: LdrLoadDll()."
+            };
+            CandidateMethod EntryPoint_ManualLoad = new CandidateMethod
+            {
+                Name = "Manual Load",
+                Description = "Entry point: a shell code that load the target dll manually."
+            };
+            InjectionNode Node_EntryPoint = new InjectionNode
+            {
+                Name = "Entry Point",
+                Candidates = new CandidateMethod[] { EntryPoint_LoadLibrary, EntryPoint_LdrLoadDll, EntryPoint_ManualLoad }
+            };
+
+            CandidateMethod GainExecution_RemoteThread = new CandidateMethod
+            {
+                Name = "CreateRemoteThread",
+                Description = "Gain execution using API CreateRemoteThread()."
+            };
+            CandidateMethod GainExecution_APC = new CandidateMethod
+            {
+                Name = "QueueUserAPC",
+                Description = "Gain execution using API QueueUserAPC()."
+            };
+            CandidateMethod GainExecution_InstrumentCallback = new CandidateMethod
+            {
+                Name = "InstrumentCallback",
+                Description = "Gain execution by windows's InstrumentCallback."
+            };
+            InjectionNode Node_GainExecution = new InjectionNode
+            {
+                Name = "Gain Execution",
+                Candidates = new CandidateMethod[] { GainExecution_RemoteThread, GainExecution_APC, GainExecution_InstrumentCallback }
+            };
+
+            MajorMethod Major_Common = new MajorMethod
             {
                 Name = "Common",
-                Description = "Injection by execute code in host context and load target dll.",
-                Details = new InjectionDetail[] { DE_ProcessAccess, DE_EntryPoint, DE_GainExecution }
+                Description = "Execute a piece of code in target process's context and load our image.",
+                MinorNodes = new InjectionNode[] { Node_ProcessAccess, Node_EntryPoint, Node_GainExecution }
             };
-            ret.Add(IM_Common);
-
-            var IM_SetWindowHook = new InjectionMethodDescriptor()
+            MajorMethod Major_SetWindowHook = new MajorMethod
             {
                 Name = "SetWindowHook",
                 Description = "Injection using API SetWindowHook().",
-                Details = null
+                MinorNodes = null
             };
-            ret.Add(IM_SetWindowHook);
-
-            var IM_IME = new InjectionMethodDescriptor()
+            MajorMethod Major_IME = new MajorMethod
             {
-                Name = "Windows IME",
-                Description = "Injection using Windows Input Method Editor",
-                Details = null
+                Name = "IME",
+                Description = "Injection using Windows Input Method Editor(IME)."
             };
-            ret.Add(IM_IME);
-
-            return ret.ToArray();
+            _majorNode = new MajorNode
+            {
+                Name = "Injection Method",
+                Candidates = new CandidateMethod[] { Major_Common, Major_SetWindowHook, Major_IME }
+            };
         }
 
-        public static bool PerformInjection(InjectionMethodDescriptor method, string[] details)
+        public static bool PerformInjection(MajorMethod method, string[] details)
         {
             return false;
         }
+
+        private static MajorNode _majorNode = null;
     }
 }
