@@ -138,7 +138,7 @@ namespace MyInjector.Injection
             };
             _majorNode = new MajorNode
             {
-                Name = "Injection Method",
+                Name = "Method",
                 Candidates = new CandidateMethod[] { Major_Common, Major_SetWindowHook, Major_IME }
             };
         }

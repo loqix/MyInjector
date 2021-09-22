@@ -67,29 +67,15 @@ namespace MyInjector
 
         private void CreateInjectionNode(Injection.InjectionNode node)
         {
-            int lastIdx = InjectionMethodArea.ColumnDefinitions.Count - 1;
-
-            InjectionMethodArea.ColumnDefinitions.Insert(lastIdx, new ColumnDefinition
-            {
-                Width = GridLength.Auto
-            });
-            InjectionMethodArea.ColumnDefinitions.Insert(lastIdx, new ColumnDefinition
-            {
-                Width = GridLength.Auto
-            });
-
-            var label = new Label { Content = "+", VerticalAlignment=VerticalAlignment.Center, HorizontalAlignment=HorizontalAlignment.Center };
+            var label = new Label { Content = "+", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
             var nodeControl = new MethodNode()
             {
-                HorizontalAlignment = HorizontalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Center,
-                Width = 150
             };
             nodeControl.Init(node);
             InjectionMethodArea.Children.Add(label);
             InjectionMethodArea.Children.Add(nodeControl);
-            Grid.SetColumn(label, lastIdx);
-            Grid.SetColumn(nodeControl, lastIdx + 1);
             InjectionMethodArea.UpdateLayout();
 
         }
