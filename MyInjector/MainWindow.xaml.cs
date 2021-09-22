@@ -65,11 +65,49 @@ namespace MyInjector
             // TODO: fire a methodselected event 
         }
 
+        private void CreateInjectionNode(Injection.InjectionNode node)
+        {
+            int lastIdx = InjectionMethodArea.ColumnDefinitions.Count - 1;
+
+            InjectionMethodArea.ColumnDefinitions.Insert(lastIdx, new ColumnDefinition
+            {
+                Width = GridLength.Auto
+            });
+            InjectionMethodArea.ColumnDefinitions.Insert(lastIdx, new ColumnDefinition
+            {
+                Width = GridLength.Auto
+            });
+
+            var label = new Label { Content = "+", VerticalAlignment=VerticalAlignment.Center, HorizontalAlignment=HorizontalAlignment.Center };
+            var nodeControl = new MethodNode()
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = 150
+            };
+            nodeControl.Init(node);
+            InjectionMethodArea.Children.Add(label);
+            InjectionMethodArea.Children.Add(nodeControl);
+            Grid.SetColumn(label, lastIdx);
+            Grid.SetColumn(nodeControl, lastIdx + 1);
+            InjectionMethodArea.UpdateLayout();
+
+        }
+
         private void Node_Major_MethodSelected(object sender, RoutedEventArgs e)
         {
-            var node = sender as MethodNode;
-            var major_method = node.Node.Candidates[node.Methods.SelectedIndex];
-            Debug.WriteLine(major_method);
+            var self = sender as MethodNode;
+            var major_method = (self.Node as Injection.MajorNode).MajorCandidates[self.Methods.SelectedIndex];
+
+            if (major_method.MinorNodes is null)
+            {
+                return;
+            }
+
+            foreach (var node in major_method.MinorNodes)
+            {
+                CreateInjectionNode(node);
+            }
         }
 
         private void TextBox_DllPath_PreviewDragOver(object sender, DragEventArgs e)
@@ -84,6 +122,7 @@ namespace MyInjector
                 return;
             }
             (sender as TextBox).Text = fileName;
+            (sender as TextBox).Foreground = Brushes.Black;
             e.Handled = true;
         }
 
@@ -290,7 +329,7 @@ namespace MyInjector
                 {
                     currentWindowHandle = IntPtr.Zero;
                     continue;
-                }      
+                }
                 Clear();
                 DrawRectangleAtPos(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
 

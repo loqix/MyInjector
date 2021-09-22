@@ -37,6 +37,7 @@ namespace MyInjector
                 Methods.Items.Add(candiate.Name);
             }
             Methods.SelectedIndex = Node.DefaultCandidate;
+            TypeName.Content = node.Name;
         }
 
         private void Methods_SelectionChanged(object sender, SelectionChangedEventArgs e)

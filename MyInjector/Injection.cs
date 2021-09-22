@@ -30,7 +30,12 @@ namespace MyInjector.Injection
         {
             get
             {
-                return Candidates as MajorMethod[];
+                List<MajorMethod> ret = new List<MajorMethod>();
+                foreach (var method in Candidates)
+                {
+                    ret.Add(method as MajorMethod);
+                }
+                return ret.ToArray();
             }
         }
     }

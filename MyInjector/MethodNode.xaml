@@ -16,7 +16,7 @@
                 <RowDefinition Height="auto"/>
             </Grid.RowDefinitions>
             <Label Content="Name" Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Left" Name="TypeName"/>
-            <ComboBox HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Grid.Row="2" Name="Methods" SelectionChanged="Methods_SelectionChanged"/>
+            <ComboBox HorizontalContentAlignment="Left" VerticalContentAlignment="Center" Grid.Row="2" Name="Methods" SelectionChanged="Methods_SelectionChanged"/>
             <Label Content="Description" Grid.Row="4" VerticalAlignment="Center" HorizontalAlignment="Left" Name="Description"/>
         </Grid>
     </Border>
