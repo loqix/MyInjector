@@ -29,7 +29,6 @@ namespace MyInjector
         public MainWindow()
         {
             InitializeComponent();
-            ComboBox_ProcessList.DataContext = processListSource;
             SetTextboxPlaceholder(TextBox_DllPath, dllPath_PlaceholderText);
             SetTextboxPlaceholder(TextBox_ProcessFilter, processFilter_PlaceholderText);
             InitMajorNode();
@@ -37,11 +36,20 @@ namespace MyInjector
 
         private void ComboBox_ProcessList_DropDownOpened(object sender, EventArgs e)
         {
+            // we dont use wpf 'DataSource' here because later we maybe want to set selected item that is not in data source
+            // so we just do it legency way
+
+            ComboBox_ProcessList.Items.Clear();
+
             // set filter
             processListSource.ProcessFilter = TextBox_ProcessFilter.Text == processFilter_PlaceholderText ? null : TextBox_ProcessFilter.Text;
 
-            // refresh data source
-            ComboBox_ProcessList.GetBindingExpression(ItemsControl.ItemsSourceProperty).UpdateTarget();
+            var data = processListSource.ProcessList;
+            foreach (var process in data)
+            {
+                ComboBox_ProcessList.Items.Add(process);
+            }
+            
         }
 
         private ProcessListSource processListSource = new ProcessListSource();
@@ -165,7 +173,9 @@ namespace MyInjector
             {
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-                    ComboBox_ProcessList.SelectedItem = String.Format("{0}\t{1}", p.Id, p.ProcessName);
+                    ComboBox_ProcessList.Items.Clear();
+                    ComboBox_ProcessList.Items.Add(String.Format("{0}\t{1}", p.Id, p.ProcessName));
+                    ComboBox_ProcessList.SelectedIndex = 0;
                 });
             });
         }
@@ -221,6 +231,10 @@ namespace MyInjector
                 Tuple<Injection.InjectionNode, int> currentSelection = new Tuple<Injection.InjectionNode, int>(node.Node, node.Methods.SelectedIndex);
                 injectionMethod.Add(currentSelection);
             }
+            var pid = GetTargetPID();
+            var dllPath = GetTargetDllPath();
+
+            Injection.InjectionMethodManager.PerformInjection(injectionMethod, pid, dllPath);
         }
     }
 

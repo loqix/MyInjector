@@ -143,7 +143,7 @@ namespace MyInjector.Injection
             };
         }
 
-        public static bool PerformInjection(MajorMethod method, string[] details)
+        public static bool PerformInjection(List<Tuple<InjectionNode, int>> method, int pid, string dllPath)
         {
             return false;
         }
