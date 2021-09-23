@@ -284,6 +284,18 @@ namespace MyInjector
 
         public static void Start(ProcessFound processFoundCallback)
         {
+            if (painterThread != null)
+            {
+                if (painterThread.IsAlive)
+                {
+                    return;
+                }
+                else
+                {
+                    painterThread = null;
+                }
+            }
+
             callback = processFoundCallback;
             exitFlag = false;
             currentWindowHandle = IntPtr.Zero;
@@ -297,7 +309,6 @@ namespace MyInjector
         public static void Stop()
         {
             exitFlag = true;
-            painterThread = null;
             currentWindowHandle = IntPtr.Zero;
         }
 
