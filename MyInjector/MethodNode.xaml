@@ -9,9 +9,9 @@
     <Border BorderBrush="Black" BorderThickness="0">
         <Grid Margin="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="auto"/>
-                <ColumnDefinition Width="auto"/>
-                <ColumnDefinition/>
+                <ColumnDefinition Width="2*" MaxWidth="100"/>
+                <ColumnDefinition Width="3*" MaxWidth="150"/>
+                <ColumnDefinition Width="5*"/>
             </Grid.ColumnDefinitions>
             <Label Content="Name" Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left" Name="TypeName"/>
             <ComboBox HorizontalContentAlignment="Left" VerticalContentAlignment="Center" Grid.Column="1" Name="Methods" SelectionChanged="Methods_SelectionChanged"/>

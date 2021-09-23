@@ -17,6 +17,7 @@ using Microsoft.Win32;
 using System.Threading;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
+using System.Runtime.CompilerServices;
 
 namespace MyInjector
 {
@@ -31,7 +32,6 @@ namespace MyInjector
             ComboBox_ProcessList.DataContext = processListSource;
             SetTextboxPlaceholder(TextBox_DllPath, dllPath_PlaceholderText);
             SetTextboxPlaceholder(TextBox_ProcessFilter, processFilter_PlaceholderText);
-
             InitMajorNode();
         }
 
@@ -62,38 +62,45 @@ namespace MyInjector
         {
             Node_Major.Init(Injection.InjectionMethodManager.MajorNode);
             Node_Major.MethodSelected += Node_Major_MethodSelected;
-            // TODO: fire a methodselected event 
+            Node_Major_MethodSelected(Node_Major, new RoutedEventArgs());
         }
 
-        private void CreateInjectionNode(Injection.InjectionNode node)
+        private void AddInjectionNode(Injection.InjectionNode node)
         {
-            var label = new Label { Content = "+", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
             var nodeControl = new MethodNode()
             {
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Center,
             };
             nodeControl.Init(node);
-            InjectionMethodArea.Children.Add(label);
             InjectionMethodArea.Children.Add(nodeControl);
             InjectionMethodArea.UpdateLayout();
+        }
 
+        private void ClearInjectionNodes()
+        {
+            var major = InjectionMethodArea.Children[0];
+            InjectionMethodArea.Children.Clear();
+            InjectionMethodArea.Children.Add(major);
+            InjectionMethodArea.UpdateLayout();
         }
 
         private void Node_Major_MethodSelected(object sender, RoutedEventArgs e)
         {
+            ClearInjectionNodes();
             var self = sender as MethodNode;
             var major_method = (self.Node as Injection.MajorNode).MajorCandidates[self.Methods.SelectedIndex];
 
-            if (major_method.MinorNodes is null)
+            if (major_method.MinorNodes != null)
             {
-                return;
+                foreach (var node in major_method.MinorNodes)
+                {
+                    AddInjectionNode(node);
+                }
             }
 
-            foreach (var node in major_method.MinorNodes)
-            {
-                CreateInjectionNode(node);
-            }
+            SizeToContent = SizeToContent.Height;
+            UpdateLayout();
         }
 
         private void TextBox_DllPath_PreviewDragOver(object sender, DragEventArgs e)
