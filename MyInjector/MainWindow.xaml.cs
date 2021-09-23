@@ -200,6 +200,28 @@ namespace MyInjector
                 SetTextboxPlaceholder(self, processFilter_PlaceholderText);
             }
         }
+
+        private Injection.MajorMethod GetSelectedMajorMethod()
+        {
+            var selected = Injection.InjectionMethodManager.MajorNode.MajorCandidates[Node_Major.Methods.SelectedIndex];
+            return selected;
+        }
+
+        private void Button_ConfirmInjection_Click(object sender, RoutedEventArgs e)
+        {
+            List<Tuple<Injection.InjectionNode, int>> injectionMethod = new List<Tuple<Injection.InjectionNode, int>>();
+            foreach (var child in InjectionMethodArea.Children)
+            {
+                var node = child as MethodNode;
+                if (node == null)
+                {
+                    continue;
+                }
+
+                Tuple<Injection.InjectionNode, int> currentSelection = new Tuple<Injection.InjectionNode, int>(node.Node, node.Methods.SelectedIndex);
+                injectionMethod.Add(currentSelection);
+            }
+        }
     }
 
     public class ProcessListSource

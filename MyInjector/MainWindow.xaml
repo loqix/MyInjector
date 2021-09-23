@@ -42,7 +42,7 @@
                 <RowDefinition Height="auto"/>
                 <RowDefinition Height="auto"/>
             </Grid.RowDefinitions>
-            <Button Grid.Row="3" Name="Button_ConfirmInjection" Content="Confirm" HorizontalAlignment="Right" Margin="2"/>
+            <Button Grid.Row="3" Name="Button_ConfirmInjection" Content="Confirm" HorizontalAlignment="Right" Margin="2" Click="Button_ConfirmInjection_Click"/>
             <StackPanel Grid.Row="1" Margin="2" Name="InjectionMethodArea">
                 <local:MethodNode x:Name="Node_Major" VerticalAlignment="Center" HorizontalAlignment="Stretch"/>
             </StackPanel>
