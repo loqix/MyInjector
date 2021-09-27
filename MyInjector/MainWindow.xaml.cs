@@ -48,8 +48,7 @@ namespace MyInjector
             foreach (var process in data)
             {
                 ComboBox_ProcessList.Items.Add(process);
-            }
-            
+            }          
         }
 
         private ProcessListSource processListSource = new ProcessListSource();
@@ -234,7 +233,45 @@ namespace MyInjector
             var pid = GetTargetPID();
             var dllPath = GetTargetDllPath();
 
-            Injection.InjectionMethodManager.PerformInjection(injectionMethod, pid, dllPath);
+            // create logger window
+            var logger = new LoggerWindow();
+           
+            // start injection
+            Thread worker = new Thread(() =>
+            {
+                InjectionWorker(injectionMethod, pid, dllPath, logger);
+            });
+            worker.Start();
+
+            logger.ShowDialog();
+        }
+
+        private void InjectionWorker(List<Tuple<Injection.InjectionNode, int>> injectionMethod, int pid, string dllPath, LoggerWindow logger)
+        {
+            bool result = Injection.InjectionMethodManager.PerformInjection(injectionMethod, pid, dllPath, (string data, bool highlight) =>
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    logger.Log(data, highlight);
+                });
+            });
+
+            if (result)
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    logger.Log("Injection succeeded", false);
+                });
+            }
+            else
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    logger.Log("Injection failed", true);
+                });
+            }
+
+            logger.CanClose = true;
         }
     }
 

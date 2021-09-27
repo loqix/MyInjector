@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace MyInjector.Injection
 {
@@ -143,10 +144,29 @@ namespace MyInjector.Injection
             };
         }
 
-        public static bool PerformInjection(List<Tuple<InjectionNode, int>> method, int pid, string dllPath)
+        public static bool PerformInjection(List<Tuple<InjectionNode, int>> method, int pid, string dllPath, Action<string, bool> logger)
         {
-            return false;
+            logger.Invoke("Start!", true);
+
+            foreach (var selection in method)
+            {
+                Thread.Sleep(2000);
+                var selected = selection.Item1.Candidates[selection.Item2];
+                var name = selected.Name;
+                logger.Invoke(name, false);
+            }
+
+
+            return true;
         }
+
+        
+
+
+
+
+
+
 
         private static MajorNode _majorNode = null;
     }
