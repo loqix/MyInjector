@@ -56,6 +56,11 @@ namespace MyInjector
         private int GetTargetPID()
         {
             string data = ComboBox_ProcessList.SelectedItem as string;
+            if (data is null)
+            {
+                return -1;
+            }
+
             data = data.Substring(0, data.IndexOf('\t'));
             return int.Parse(data);
         }
@@ -218,6 +223,15 @@ namespace MyInjector
 
         private void Button_ConfirmInjection_Click(object sender, RoutedEventArgs e)
         {
+            var pid = GetTargetPID();
+            var dllPath = GetTargetDllPath();
+            if (pid < 0 || dllPath is null || dllPath == "")
+            {
+                MessageBox.Show("Invalid parameter!");
+                return;
+            }
+
+
             List<Tuple<Injection.InjectionNode, int>> injectionMethod = new List<Tuple<Injection.InjectionNode, int>>();
             foreach (var child in InjectionMethodArea.Children)
             {
@@ -230,8 +244,6 @@ namespace MyInjector
                 Tuple<Injection.InjectionNode, int> currentSelection = new Tuple<Injection.InjectionNode, int>(node.Node, node.Methods.SelectedIndex);
                 injectionMethod.Add(currentSelection);
             }
-            var pid = GetTargetPID();
-            var dllPath = GetTargetDllPath();
 
             // create logger window
             var logger = new LoggerWindow();

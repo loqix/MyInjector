@@ -122,7 +122,7 @@ namespace MyInjector.Injection
 
             MajorMethod Major_Common = new MajorMethod
             {
-                Name = "Common",
+                Name = "Regular",
                 Description = "Execute a piece of code in target process's context and load our image.",
                 MinorNodes = new InjectionNode[] { Node_ProcessAccess, Node_EntryPoint, Node_GainExecution }
             };
@@ -146,28 +146,35 @@ namespace MyInjector.Injection
 
         public static bool PerformInjection(List<Tuple<InjectionNode, int>> method, int pid, string dllPath, Action<string, bool> logger)
         {
-            logger.Invoke("Start!", true);
+            logger.Invoke("Injection starts.", false);
 
-            foreach (var selection in method)
+            try
             {
-                Thread.Sleep(2000);
-                var selected = selection.Item1.Candidates[selection.Item2];
-                var name = selected.Name;
-                logger.Invoke(name, false);
+                var first = method.First();
+                var majorMethod = first.Item1.Candidates[first.Item2] as MajorMethod;
+                if (majorMethod.Name == "Regular")
+                {
+                    method.RemoveAt(0);
+                    return PerformInjection_Regular(method, pid, dllPath, logger);
+                }
+                else
+                {
+                    throw new NotImplementedException();
+                }
             }
-
-
-            return true;
+            catch (Exception e)
+            {
+                logger.Invoke(e.ToString(), true);
+                return false;                
+            }
         }
 
+        private static bool PerformInjection_Regular(List<Tuple<InjectionNode, int>> method, int pid, string dllPath, Action<string, bool> logger)
+        {
+            logger.Invoke("Everything is fine.", false);
+            return true;
+        }
         
-
-
-
-
-
-
-
         private static MajorNode _majorNode = null;
     }
 }
