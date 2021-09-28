@@ -68,6 +68,7 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Injection.cs" />
+    <Compile Include="InjectionOperation.cs" />
     <Compile Include="LoggerWindow.xaml.cs">
       <DependentUpon>LoggerWindow.xaml</DependentUpon>
     </Compile>
