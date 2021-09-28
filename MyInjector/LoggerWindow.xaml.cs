@@ -27,7 +27,7 @@ namespace MyInjector
 
         public bool CanClose { get; set; } = false;
 
-        public void Log(string data, bool highlight)
+        public void Log(string data, Brush color)
         {
             var now = DateTime.Now;
             var p1 = now.ToString("T");
@@ -36,16 +36,24 @@ namespace MyInjector
             var p = new Paragraph(new Run(timestamp + "\t" + data))
             {
                 Margin = new Thickness(0, 0, 0, 0),
-                Foreground = highlight ? Brushes.Red : Brushes.Black
+                Foreground = color
             };
             DataArea.Blocks.Add(p);
+        }
+
+        public void LogThreadSafe(string data, Brush color)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                Log(data, color);
+            });
         }
 
         void MyWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             if (!CanClose)
             {
-                Log("Injection in progress, close this window later!", true);
+                Log("Injection in progress, close this window later!", Brushes.Red);
                 e.Cancel = true;
             }
         }

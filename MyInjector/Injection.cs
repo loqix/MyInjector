@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -144,35 +145,32 @@ namespace MyInjector.Injection
             };
         }
 
-        public static bool PerformInjection(List<Tuple<InjectionNode, int>> method, int pid, string dllPath, Action<string, bool> logger)
+        public static bool PerformInjection(List<Tuple<InjectionNode, int>> method, int pid, bool isX64, string dllPath, Action<string> logger)
         {
-            logger.Invoke("Injection starts.", false);
-
-            try
+            var proc = new Process
             {
-                var first = method.First();
-                var majorMethod = first.Item1.Candidates[first.Item2] as MajorMethod;
-                if (majorMethod.Name == "Regular")
+                StartInfo = new ProcessStartInfo
                 {
-                    method.RemoveAt(0);
-                    return PerformInjection_Regular(method, pid, dllPath, logger);
+                    FileName = "NativeAgent_" + (isX64 ? "x64" : "x86"),
+                    Arguments = "",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow= true
                 }
-                else
-                {
-                    throw new NotImplementedException();
-                }
-            }
-            catch (Exception e)
-            {
-                logger.Invoke(e.ToString(), true);
-                return false;                
-            }
-        }
+            };
 
-        private static bool PerformInjection_Regular(List<Tuple<InjectionNode, int>> method, int pid, string dllPath, Action<string, bool> logger)
-        {
-            logger.Invoke("Everything is fine.", false);
-            return true;
+            proc.Start();
+            while (!proc.StandardOutput.EndOfStream)
+            {
+                string output = proc.StandardOutput.ReadLine();
+                logger.Invoke(output);
+            }
+            proc.WaitForExit();
+            if (proc.ExitCode == 1)
+            {
+                return true;
+            }
+            return false;
         }
         
         private static MajorNode _majorNode = null;

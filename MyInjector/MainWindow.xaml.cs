@@ -173,12 +173,12 @@ namespace MyInjector
         private void Widget_ProcessFinder_MouseDown(object sender, MouseButtonEventArgs e)
         {
             Widget_ProcessFinder.CaptureMouse();
-            WindowFramePainter.Start((Process p) =>
+            WindowFramePainter.Start((int pid, string name) =>
             {
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     ComboBox_ProcessList.Items.Clear();
-                    ComboBox_ProcessList.Items.Add(String.Format("{0}\t{1}", p.Id, p.ProcessName));
+                    ComboBox_ProcessList.Items.Add(String.Format("{0}\t{1}", pid, name is null ? "[No Name]" : name));
                     ComboBox_ProcessList.SelectedIndex = 0;
                 });
             });
@@ -258,31 +258,37 @@ namespace MyInjector
             logger.ShowDialog();
         }
 
+        private bool IsTargetX64(int target)
+        {
+            return false;
+        }
+
         private void InjectionWorker(List<Tuple<Injection.InjectionNode, int>> injectionMethod, int pid, string dllPath, LoggerWindow logger)
         {
-            bool result = Injection.InjectionMethodManager.PerformInjection(injectionMethod, pid, dllPath, (string data, bool highlight) =>
+            bool isTargetX64 = false;
+            logger.LogThreadSafe("Injection start", Brushes.Black);
+
+            bool result = false;
+            try
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                result = Injection.InjectionMethodManager.PerformInjection(injectionMethod, pid, isTargetX64, dllPath, (string data) =>
                 {
-                    logger.Log(data, highlight);
+                    logger.LogThreadSafe(data, Brushes.Black);
                 });
-            });
+            }
+            catch (Exception e)
+            {
+                logger.LogThreadSafe(e.ToString(), Brushes.Red);
+            }
 
             if (result)
             {
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    logger.Log("Injection succeeded", false);
-                });
+                logger.LogThreadSafe("Injection succeeded", Brushes.Green);
             }
             else
             {
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    logger.Log("Injection failed", true);
-                });
+                logger.LogThreadSafe("Injection failed", Brushes.Red);
             }
-
             logger.CanClose = true;
         }
     }
@@ -422,21 +428,35 @@ namespace MyInjector
                 Clear();
                 DrawRectangleAtPos(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
 
-                callback?.Invoke(CurrentProcess);
+                callback?.Invoke(SelectedProcessID, SelectedProcessName);
             }
             Clear();
         }
 
-        public static Process CurrentProcess
+        public static int SelectedProcessID
         {
-            get 
+            get
+            {
+                if (currentWindowHandle == IntPtr.Zero)
+                {
+                    return -1;
+                }
+                GetWindowThreadProcessId(currentWindowHandle, out uint processId);
+                return (int)processId;
+            }
+        }
+
+        public static string SelectedProcessName
+        {
+            get
             {
                 if (currentWindowHandle == IntPtr.Zero)
                 {
                     return null;
                 }
                 GetWindowThreadProcessId(currentWindowHandle, out uint processId);
-                return Process.GetProcessById((int)processId);
+                var proc = Process.GetProcessById((int)processId);
+                return proc is null ? null : proc.ProcessName;
             }
         }
 
@@ -445,7 +465,7 @@ namespace MyInjector
         private static Thread painterThread = null;
         private static IntPtr currentWindowHandle = IntPtr.Zero;
         private static ProcessFound callback;
-        public delegate void ProcessFound(Process p);
+        public delegate void ProcessFound(int pid, string processName);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT
