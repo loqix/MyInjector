@@ -258,16 +258,63 @@ namespace MyInjector
             logger.ShowDialog();
         }
 
-        private bool IsTargetX64(int target)
+        private bool IsTargetX64(int pid, out bool isX64)
         {
-            return false;
+            isX64 = false;
+
+            if (!Environment.Is64BitOperatingSystem)
+            {
+                return true;
+            }
+
+            var kernel32 = GetModuleHandle("kernel32");
+            var func = GetProcAddress(kernel32, "IsWow64Process");
+            if (func == IntPtr.Zero)
+            {
+                // No IsWoW64Process() function in kernel32.dll
+                return true;
+            }
+            var IsWow64Process = Marshal.GetDelegateForFunctionPointer<IsWow64ProcessType>(func);
+            var processHandle = OpenProcess(0x1000, false, pid);
+            if (processHandle == IntPtr.Zero)
+            {
+                return false;
+            }
+            var ret = IsWow64Process.Invoke(processHandle, out bool isOnWow);
+            CloseHandle(processHandle);
+            if (!ret)
+            {
+                return false;
+            }
+            if (isOnWow)
+            {
+                // target is running on Windows on Windows 64 subsystem, so it is a x86 process
+                return true;
+            }
+            else
+            {
+                isX64 = true;
+                return true;
+            }
         }
 
         private void InjectionWorker(List<Tuple<Injection.InjectionNode, int>> injectionMethod, int pid, string dllPath, LoggerWindow logger)
         {
-            bool isTargetX64 = false;
-            logger.LogThreadSafe("Injection start", Brushes.Black);
+            bool isTargetX64;
+            if (!IsTargetX64(pid, out isTargetX64))
+            {
+                var selection = MessageBox.Show("Failed to get target process's architecture, please set it manually.\nIs target a x64 process?", "Question", MessageBoxButton.YesNo);
+                if (selection == MessageBoxResult.Yes)
+                {
+                    isTargetX64 = true;
+                }
+                else
+                {
+                    isTargetX64 = false;
+                }
+            }
 
+            logger.LogThreadSafe(String.Format("Injection start, target is {0}", isTargetX64 ? "x64" : "x86"), Brushes.Black);
             bool result = false;
             try
             {
@@ -291,6 +338,22 @@ namespace MyInjector
             }
             logger.CanClose = true;
         }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+        static extern IntPtr GetModuleHandle(string lpModuleName);
+
+        [DllImport("kernel32", CharSet = CharSet.Ansi, ExactSpelling = true, SetLastError = true)]
+        static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, int processId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool CloseHandle(IntPtr hObject);
+
+        delegate bool IsWow64ProcessType(IntPtr processHandle, [MarshalAs(UnmanagedType.Bool)] out bool wow64Process);
     }
 
     public class ProcessListSource

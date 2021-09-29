@@ -147,18 +147,24 @@ namespace MyInjector.Injection
 
         public static bool PerformInjection(List<Tuple<InjectionNode, int>> method, int pid, bool isX64, string dllPath, Action<string> logger)
         {
+            string arguments = string.Format("{0} \"{1}\" ", pid, dllPath);
+            foreach (var selection in method)
+            {
+                string name = selection.Item1.Candidates[selection.Item2].Name;
+                arguments += string.Format("\"{0}\" ", name);
+            }
+
             var proc = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "NativeAgent_" + (isX64 ? "x64" : "x86"),
-                    Arguments = "",
+                    Arguments = arguments,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     CreateNoWindow= true
                 }
             };
-
             proc.Start();
             while (!proc.StandardOutput.EndOfStream)
             {

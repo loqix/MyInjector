@@ -1,11 +1,42 @@
 ﻿// NativeAgent.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
 //
 
+#include "RegularInjection.h"
 #include <iostream>
 
-int main()
+int main(int argc, char* argv[], char* envp[])
 {
-    std::cout << "Hello World!\n";
+    try
+    {
+        int pid = std::stoi(argv[1]);
+        std::filesystem::path dllPath = argv[2];
+        std::string major_method = argv[3];
+        std::vector<std::string> methods;
+        for (int i = 4; i < argc; i++)
+        {
+            methods.push_back(argv[i]);
+        }
+
+        if (major_method == "Regular")
+        {
+            return RegularInjectionMgr::DoInjection(pid, dllPath, methods);
+        }
+        else if (major_method == "SetWindowHook")
+        {
+            ;
+        }
+        else if (major_method == "IME")
+        {
+            ;
+        }
+    }
+    catch (std::exception e)
+    {
+        std::cout << e.what() << std::endl;
+        return 0;
+    }
+
+    return 0;
 }
 
 // 运行程序: Ctrl + F5 或调试 >“开始执行(不调试)”菜单
