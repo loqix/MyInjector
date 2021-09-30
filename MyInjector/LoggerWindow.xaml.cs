@@ -35,7 +35,7 @@ namespace MyInjector
             var timestamp = p1 + "." + p2;
             var p = new Paragraph(new Run(timestamp + "\t" + data))
             {
-                Margin = new Thickness(0, 0, 0, 0),
+                Margin = new Thickness(1, 1, 1, 1),
                 Foreground = color
             };
             DataArea.Blocks.Add(p);

@@ -6,7 +6,7 @@
 class RegularInjectionMgr
 {
 public:
-    static bool DoInjection(int pid, const std::filesystem::path& dllPath, const std::vector<std::string>& methods);
+    static void DoInjection(int pid, const std::filesystem::path& dllPath, const std::vector<std::string>& methods);
 
     static bool CheckParameters(const std::vector<std::string>& methods);
 };

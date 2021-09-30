@@ -3,9 +3,18 @@
 
 #include "RegularInjection.h"
 #include <iostream>
+#include "Common.h"
 
 int main(int argc, char* argv[], char* envp[])
 {
+    // DEBUG
+    for (int i = 1; i < argc; i++)
+    {
+        std::cout << argv[i] << " ";
+    }
+    std::cout << std::endl;
+
+
     try
     {
         int pid = std::stoi(argv[1]);
@@ -19,7 +28,8 @@ int main(int argc, char* argv[], char* envp[])
 
         if (major_method == "Regular")
         {
-            return RegularInjectionMgr::DoInjection(pid, dllPath, methods);
+            RegularInjectionMgr::DoInjection(pid, dllPath, methods);
+            return 0;
         }
         else if (major_method == "SetWindowHook")
         {
@@ -32,11 +42,9 @@ int main(int argc, char* argv[], char* envp[])
     }
     catch (std::exception e)
     {
-        std::cout << e.what() << std::endl;
-        return 0;
+        Common::Print("[!] %s", e.what());
     }
-
-    return 0;
+    return -1;
 }
 
 // 运行程序: Ctrl + F5 或调试 >“开始执行(不调试)”菜单

@@ -7,9 +7,9 @@
 class IProcessAccess
 {
 public:
-    virtual bool ReadMemory(void* addr, SIZE_T len, std::vector<BYTE>& dataRead) = 0;
+    virtual void ReadMemory(void* addr, SIZE_T len, std::vector<BYTE>& dataRead) = 0;
 
-    virtual bool WriteMemory(void* addr, const std::vector<BYTE>& data, SIZE_T& bytesWritten) = 0;
+    virtual void WriteMemory(void* addr, const std::vector<BYTE>& data, SIZE_T& bytesWritten) = 0;
 
     /// <summary>
     /// Allocate memory in target process's context
@@ -17,7 +17,7 @@ public:
     /// <param name="addr"></param>
     /// <param name="len"></param>
     /// <param name="protect">example PAGE_READWRITE, PAGE_EXECUTE, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE</param>
-    /// <returns>return NULL when fails</returns>
+    /// <returns></returns>
     virtual void* AllocateMemory(void* addr, SIZE_T len, DWORD protect) = 0;
 
     /// <summary>
@@ -34,32 +34,44 @@ public:
 class HandleProcessAccess : public IProcessAccess
 {
 public:
-    virtual bool ReadMemory(void* addr, SIZE_T len, std::vector<BYTE>& dataRead) override
+    virtual void ReadMemory(void* addr, SIZE_T len, std::vector<BYTE>& dataRead) override
     {
         dataRead.clear();
         SIZE_T bytesRead = 0;
         std::unique_ptr<BYTE> buffer = std::make_unique<BYTE>(len);
-        if (!::ReadProcessMemory(handle, addr, buffer.get(), len, &bytesRead))
+        if (!ReadProcessMemory(handle, addr, buffer.get(), len, &bytesRead))
         {
-            return false;
+            Common::ThrowException("ReadProcessMemory() failed with %d.", GetLastError());
         }
         dataRead.assign(buffer.get(), buffer.get() + bytesRead);
-        return true;
     }
 
-    virtual bool WriteMemory(void* addr, const std::vector<BYTE>& data, SIZE_T& bytesWritten) override
+    virtual void WriteMemory(void* addr, const std::vector<BYTE>& data, SIZE_T& bytesWritten) override
     {
-        return ::WriteProcessMemory(handle, addr, &data[0], data.size(), &bytesWritten);
+        if (!WriteProcessMemory(handle, addr, &data[0], data.size(), &bytesWritten))
+        {
+            Common::ThrowException("WriteProcessMemory() failed with %d.", GetLastError());
+        }
     }
 
     virtual void* AllocateMemory(void* addr, SIZE_T len, DWORD protect) override
     {
-        return VirtualAllocEx(handle, addr, len, MEM_COMMIT | MEM_RESERVE, protect);
+        auto ret = VirtualAllocEx(handle, addr, len, MEM_COMMIT | MEM_RESERVE, protect);
+        if (!ret)
+        {
+            Common::ThrowException("VirtualAllocEx() failed with %d.", GetLastError());
+        }
+        return ret;
     }
 
     virtual HANDLE CreateThread(void* addr, void* param, DWORD flag, DWORD& threadId) override
     {
-        return CreateRemoteThread(handle, 0, 0, (LPTHREAD_START_ROUTINE)addr, param, flag, &threadId);
+        auto ret = CreateRemoteThread(handle, 0, 0, (LPTHREAD_START_ROUTINE)addr, param, flag, &threadId);
+        if (!ret)
+        {
+            Common::ThrowException("CreateRemoteThread() failed with %d.", GetLastError());
+        }
+        return ret;
     }
 
     HandleProcessAccess(HANDLE handle)
@@ -81,14 +93,14 @@ private:
 class KernelProcessAccess : public IProcessAccess
 {
 public:
-    virtual bool ReadMemory(void* addr, SIZE_T len, std::vector<BYTE>& dataRead) override
+    virtual void ReadMemory(void* addr, SIZE_T len, std::vector<BYTE>& dataRead) override
     {
-        return false;
+        return ;
     }
 
-    virtual bool WriteMemory(void* addr, const std::vector<BYTE>& data, SIZE_T& bytesWritten) override
+    virtual void WriteMemory(void* addr, const std::vector<BYTE>& data, SIZE_T& bytesWritten) override
     {
-        return false;
+        return ;
     }
 
     virtual void* AllocateMemory(void* addr, SIZE_T len, DWORD protect) override
@@ -121,25 +133,14 @@ public:
 class LoadLibraryEntryPoint : public IEntryPoint
 {
 public:
-    virtual bool Prepare(const std::wstring& dllPath)
+    virtual void Prepare(const std::wstring& dllPath)
     {
         // write dll path, in wide char, to target memory
         int dataSize = (dllPath.size() + 1) * sizeof(wchar_t);
         auto allocated = access->AllocateMemory(0, dataSize, PAGE_READWRITE);
-        if (!allocated)
-        {
-            return false;
-        }
         std::vector<BYTE> buffer((BYTE*)dllPath.c_str(), (BYTE*)dllPath.c_str() + dataSize);
         SIZE_T bytesWritten = 0;
-        if (!access->WriteMemory(allocated, buffer, bytesWritten))
-        {
-            return false;
-        }
-        if (bytesWritten != dataSize)
-        {
-            return false;
-        }
+        access->WriteMemory(allocated, buffer, bytesWritten);
 
         parameter = allocated;
         if (auto base = GetModuleHandleW(L"Kernel32"))
@@ -148,9 +149,8 @@ public:
         }
         if (!entrypoint)
         {
-            return false;
+            Common::ThrowException("Cannot get the address of Kernel32.LoadLibraryW().");
         }
-        return true;
     }
 
     virtual void* GetEntryPoint() override
@@ -232,25 +232,23 @@ private:
     void* parameter = NULL;
 };
 
-class IExecuteMethod
+class IExecuter
 {
 public:
-    virtual bool Go() = 0;
+    virtual void Go() = 0;
 };
 
-
-class CreateRemoteThreadExecuteMethod : public IExecuteMethod
+class CreateRemoteThreadExecuter : public IExecuter
 {
 public:
-    virtual bool Go() override
+    virtual void Go() override
     {
         DWORD threadId = 0;
         auto handle = access->CreateThread(startAddr, parameter, 0, threadId);
         if (WAIT_OBJECT_0 != WaitForSingleObject(handle, 5 * 1000)) // wait for 5 seconds for the LoadLibrary() call to return.
         {
-            ;
+            Common::Print("[!] New thread does not return in 5 seconds.");
         }
-        return true;
     }
 
     void Prepare(void* startAddr, void* parameter)
@@ -259,7 +257,7 @@ public:
         this->parameter = parameter;
     }
 
-    CreateRemoteThreadExecuteMethod(IProcessAccess* access)
+    CreateRemoteThreadExecuter(IProcessAccess* access)
     {
         this->access = access;
     }
@@ -270,6 +268,39 @@ private:
     void* parameter = NULL;
 };
 
+class InstrumentCallbackExecuter : public IExecuter
+{
+public:
+    virtual void Go() override
+    {
+        ;
+    }
+
+    void Prepare(void* startAddr, void* parameter)
+    {
+        this->startAddr = startAddr;
+        this->parameter = parameter;
+
+
+        
+
+
+    }
+
+    InstrumentCallbackExecuter(IProcessAccess* access)
+    {
+        this->access = access;
+    }
+
+private:
+    IProcessAccess* access = NULL;
+    void* startAddr = NULL;
+    void* parameter = NULL;
+
+
+    inline static BYTE shellcode[] = { 0x90 };
+    inline static BYTE shellcode[] = { 0x90 };
+};
 
 
 
@@ -281,12 +312,11 @@ HANDLE GetProcessHandleByDuplication(int pid, DWORD access)
     return NULL;
 }
 
-bool RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllPath, const std::vector<std::string>& methods)
+void RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllPath, const std::vector<std::string>& methods)
 {
     if (!CheckParameters(methods))
     {
-        Common::Print("%s: Check parameters failed.", __FUNCTION__);
-        return false;
+        Common::ThrowException("Check parameters failed.");
     }
     std::string process_access_method = methods[0];
     std::string entry_point_method = methods[1];
@@ -299,8 +329,7 @@ bool RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllP
         auto target_handle = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
         if (target_handle == NULL)
         {
-            Common::Print("%s: OpenProcess failed with %d", __FUNCTION__, GetLastError());
-            return false;
+            Common::ThrowException("OpenProcess failed with %d", GetLastError());
         }
         Common::Print("[+] Process opened.");
         access.reset(new HandleProcessAccess(target_handle));
@@ -310,9 +339,9 @@ bool RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllP
         auto target_handle = GetProcessHandleByDuplication(pid, PROCESS_ALL_ACCESS);
         if (target_handle == NULL)
         {
-            Common::Print("%s: Failed to get a handle.", __FUNCTION__);
-            return false;
+            Common::ThrowException("Failed to get a handle.");
         }
+        Common::Print("[+] Target handle get.");
         access.reset(new HandleProcessAccess(target_handle));
     }
 
@@ -321,10 +350,7 @@ bool RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllP
     if (entry_point_method == "LoadLibrary")
     {
         LoadLibraryEntryPoint* loadlibrary_entry = new LoadLibraryEntryPoint(access.get());
-        if (!loadlibrary_entry->Prepare(dllPath.wstring()))
-        {
-            return false;
-        }
+        loadlibrary_entry->Prepare(dllPath.wstring());
         Common::Print("[+] Entrypoint LoadLibrary() successfully prepared.");
         entry.reset(loadlibrary_entry);     
     }
@@ -338,25 +364,28 @@ bool RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllP
     }
 
     // 3. execute our entry point in target's context
-    std::unique_ptr<IExecuteMethod> executer;
-    if (entry_point_method == "CreateRemoteThread")
+    std::unique_ptr<IExecuter> executer;
+    if (gain_execution_method == "CreateRemoteThread")
     {
-        auto remotethread = new CreateRemoteThreadExecuteMethod(access.get());
+        auto remotethread = new CreateRemoteThreadExecuter(access.get());
         remotethread->Prepare(entry->GetEntryPoint(), entry->GetParameter());
         Common::Print("[+] CreateRemoteThread executer set.");
         executer.reset(remotethread);
     }
-    else if (entry_point_method == "QueueUserAPC")
+    else if (gain_execution_method == "QueueUserAPC")
     {
         ;
     }
-    else if (entry_point_method == "InstrumentCallback")
+    else if (gain_execution_method == "InstrumentCallback")
     {
-        ;
+        auto ic = new InstrumentCallbackExecuter(access.get());
+        ic->Prepare(entry->GetEntryPoint(), entry->GetParameter());
+        Common::Print("[+] InstrumentCallback executer set.");
+        executer.reset(ic);
     }
 
     // 4. go for it
-    return executer->Go();
+    executer->Go();
 }
 
 bool RegularInjectionMgr::CheckParameters(const std::vector<std::string>& methods)

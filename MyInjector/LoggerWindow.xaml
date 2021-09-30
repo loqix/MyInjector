@@ -5,12 +5,11 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MyInjector"
         mc:Ignorable="d"
-        Title="Log" Height="200" Width="600"
+        Title="Log" Height="250" Width="800"
         Background="Black" BorderThickness="0">
     <Grid>
         <RichTextBox Background="White" IsReadOnly="True" FontFamily="Consolas" FontSize="15" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <FlowDocument Name="DataArea">
-
             </FlowDocument>
         </RichTextBox>
     </Grid>

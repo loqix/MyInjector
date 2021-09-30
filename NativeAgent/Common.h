@@ -18,6 +18,17 @@ namespace Common
         free(formatted);
     }
 
+    inline void ThrowException(const char* fmt, ...)
+    {
+        va_list args;
+        va_start(args, fmt);
+        int len = _vscprintf(fmt, args) + 1;
+        static char* buffer = (char*)malloc(1024 * 1024);
+        vsprintf_s(buffer, len, fmt, args);
+        va_end(args);
+        throw std::exception(buffer);
+    }
+
     inline std::wstring StringToWString(const std::string& str, UINT codePage = CP_ACP) 
     {
         int num = MultiByteToWideChar(codePage, 0, str.c_str(), -1, NULL, 0);

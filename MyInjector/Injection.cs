@@ -172,10 +172,11 @@ namespace MyInjector.Injection
                 logger.Invoke(output);
             }
             proc.WaitForExit();
-            if (proc.ExitCode == 1)
+            if (proc.ExitCode == 0)
             {
                 return true;
             }
+            logger.Invoke(string.Format("[!] Injection exits with code {0}", proc.ExitCode));
             return false;
         }
         

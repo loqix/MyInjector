@@ -55,12 +55,10 @@ namespace MyInjector
 
         private int GetTargetPID()
         {
-            string data = ComboBox_ProcessList.SelectedItem as string;
-            if (data is null)
+            if (!(ComboBox_ProcessList.SelectedItem is string data))
             {
                 return -1;
             }
-
             data = data.Substring(0, data.IndexOf('\t'));
             return int.Parse(data);
         }
@@ -215,12 +213,6 @@ namespace MyInjector
             }
         }
 
-        private Injection.MajorMethod GetSelectedMajorMethod()
-        {
-            var selected = Injection.InjectionMethodManager.MajorNode.MajorCandidates[Node_Major.Methods.SelectedIndex];
-            return selected;
-        }
-
         private void Button_ConfirmInjection_Click(object sender, RoutedEventArgs e)
         {
             var pid = GetTargetPID();
@@ -230,7 +222,6 @@ namespace MyInjector
                 MessageBox.Show("Invalid parameter!");
                 return;
             }
-
 
             List<Tuple<Injection.InjectionNode, int>> injectionMethod = new List<Tuple<Injection.InjectionNode, int>>();
             foreach (var child in InjectionMethodArea.Children)
@@ -247,6 +238,8 @@ namespace MyInjector
 
             // create logger window
             var logger = new LoggerWindow();
+            logger.Top = this.Top + 20;
+            logger.Left = this.Left + 20;
            
             // start injection
             Thread worker = new Thread(() =>
@@ -314,7 +307,7 @@ namespace MyInjector
                 }
             }
 
-            logger.LogThreadSafe(String.Format("Injection start, target is {0}", isTargetX64 ? "x64" : "x86"), Brushes.Black);
+            logger.LogThreadSafe(String.Format("[+] Injection start, target is {0}", isTargetX64 ? "x64" : "x86"), Brushes.Black);
             bool result = false;
             try
             {
@@ -330,11 +323,11 @@ namespace MyInjector
 
             if (result)
             {
-                logger.LogThreadSafe("Injection succeeded", Brushes.Green);
+                logger.LogThreadSafe("[+] Injection succeeded", Brushes.Green);
             }
             else
             {
-                logger.LogThreadSafe("Injection failed", Brushes.Red);
+                logger.LogThreadSafe("[-] Injection failed", Brushes.Red);
             }
             logger.CanClose = true;
         }
@@ -491,7 +484,10 @@ namespace MyInjector
                 Clear();
                 DrawRectangleAtPos(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
 
-                callback?.Invoke(SelectedProcessID, SelectedProcessName);
+                if (!exitFlag)
+                {
+                    callback?.Invoke(SelectedProcessID, SelectedProcessName);
+                }
             }
             Clear();
         }
