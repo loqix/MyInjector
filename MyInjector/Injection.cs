@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -147,6 +148,13 @@ namespace MyInjector.Injection
 
         public static bool PerformInjection(List<Tuple<InjectionNode, int>> method, int pid, bool isX64, string dllPath, Action<string> logger)
         {
+            var isFilePe64 = IsPEFile64(dllPath);
+            if (isX64 != isFilePe64)
+            {
+                logger.Invoke(string.Format("[!] Target process is {0}, but dll file is {1}", isX64 ? "64bit" : "32bit", isFilePe64 ? "64bit" : "32bit"));
+                return false;
+            }
+
             string arguments = string.Format("{0} \"{1}\" ", pid, dllPath);
             foreach (var selection in method)
             {
@@ -162,7 +170,7 @@ namespace MyInjector.Injection
                     Arguments = arguments,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
-                    CreateNoWindow= true
+                    CreateNoWindow = true
                 }
             };
             proc.Start();
@@ -178,6 +186,35 @@ namespace MyInjector.Injection
             }
             logger.Invoke(string.Format("[!] Injection exits with code {0}", proc.ExitCode));
             return false;
+        }
+
+        private static bool IsPEFile64(string filePath)
+        {
+            // See http://www.microsoft.com/whdc/system/platform/firmware/PECOFF.mspx
+            // Offset to PE header is always at 0x3C.
+            // The PE header starts with "PE\0\0" =  0x50 0x45 0x00 0x00,
+            // followed by a 2-byte machine type field (see the document above for the enum).
+            //
+            FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+            BinaryReader br = new BinaryReader(fs);
+            fs.Seek(0x3c, SeekOrigin.Begin);
+            Int32 peOffset = br.ReadInt32();
+            fs.Seek(peOffset, SeekOrigin.Begin);
+            UInt32 peHead = br.ReadUInt32();
+            if (peHead != 0x00004550) // "PE\0\0", little-endian
+                throw new Exception("Can't find PE header");
+            var machineType = br.ReadUInt16();
+            br.Close();
+            fs.Close();
+            if (machineType == 0x8664) // x86_64
+            {
+                return true;
+            }
+            if (machineType == 0x14c) // i386
+            {
+                return false;
+            }
+            throw new Exception("Target is not a supported PE file.");
         }
         
         private static MajorNode _majorNode = null;

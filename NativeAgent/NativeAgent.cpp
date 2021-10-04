@@ -8,6 +8,7 @@
 int main(int argc, char* argv[], char* envp[])
 {
     // DEBUG
+    std::cout << "[D] ";
     for (int i = 1; i < argc; i++)
     {
         std::cout << argv[i] << " ";
@@ -33,11 +34,13 @@ int main(int argc, char* argv[], char* envp[])
         }
         else if (major_method == "SetWindowHook")
         {
-            ;
+            Common::Print("Not implemented.");
+            return -1;
         }
         else if (major_method == "IME")
         {
-            ;
+            Common::Print("Not implemented.");
+            return -1;
         }
     }
     catch (std::exception e)

@@ -264,7 +264,7 @@ namespace MyInjector
             var func = GetProcAddress(kernel32, "IsWow64Process");
             if (func == IntPtr.Zero)
             {
-                // No IsWoW64Process() function in kernel32.dll
+                // No IsWoW64Process() function in kernel32.dll, so the system is 32bit.
                 return true;
             }
             var IsWow64Process = Marshal.GetDelegateForFunctionPointer<IsWow64ProcessType>(func);
