@@ -85,7 +85,7 @@ public:
         }
         else
         {
-            Common::Print("[!] Set privilege failed(Did you run this program under administration right?)");
+            Common::Print("[!] Set privilege failed(Did you run this program as administrator?)");
         }
 
 #ifdef _WIN64
@@ -331,6 +331,7 @@ public:
         this->startAddr = startAddr;
         this->parameter = parameter;
         auto base = access->AllocateMemory(0, sizeof(shellcode), PAGE_EXECUTE_READWRITE);
+        Common::Print("[+] Shellcode written at 0x%p", base);
         FixShellcode(base, startAddr, parameter);
         SIZE_T bytesWritten = 0;
         access->WriteMemory(base, std::vector<BYTE>(&shellcode[0], &shellcode[sizeof(shellcode)]), bytesWritten);
@@ -348,38 +349,93 @@ private:
     void* parameter = NULL;
     void* realEntryPoint = NULL;
 
-#ifdef _WIN64
-    inline static BYTE shellcode[] = { 0x90 };
+#ifdef _WIN64 
+ /*     0:  9c                      pushf
+        1 : 80 3d 6c 00 00 00 00    cmp    BYTE PTR[rip + 0x6c], 0x0        # 74 < realExit + 0x5 >
+        8:  75 65                   jne    6f <realExit>
+        a : 50                      push   rax
+        b : 53                      push   rbx
+        c : 51                      push   rcx
+        d : 52                      push   rdx
+        e : 41 50                   push   r8
+        10 : 41 51                   push   r9
+        12 : 41 52                   push   r10
+        14 : 41 53                   push   r11
+        16 : 41 54                   push   r12
+        18 : 41 55                   push   r13
+        1a : 41 56                   push   r14
+        1c : 41 57                   push   r15
+        1e : 55                      push   rbp
+        1f : 57                      push   rdi
+        20 : 56                      push   rsi
+        21 : 48 c7 c0 01 00 00 00    mov    rax, 0x1
+        28 : f0 0f c0 05 43 00 00    lock xadd BYTE PTR[rip + 0x43], al        # 73 < realExit + 0x4 >
+        2f: 00
+        30 : 3c 00                   cmp    al, 0x0
+        32 : 75 24                   jne    58 < exit >
+        34 : 48 b9 aa aa aa aa aa    movabs rcx, 0xaaaaaaaaaaaaaaaa
+        3b : aa aa aa
+        3e : 48 b8 bb bb bb bb bb    movabs rax, 0xbbbbbbbbbbbbbbbb
+        45 : bb bb bb
+        48 : 48 89 e5                mov    rbp, rsp
+        4b : 48 83 ec 20             sub    rsp, 0x20
+        4f : 48 83 e4 f0 and rsp, 0xfffffffffffffff0
+        53 : ff d0                   call   rax
+        55 : 48 89 ec                mov    rsp, rbp
+        0000000000000058 <exit> :
+        58 : 5e                      pop    rsi
+        59 : 5f                      pop    rdi
+        5a : 5d                      pop    rbp
+        5b : 41 5f                   pop    r15
+        5d : 41 5e                   pop    r14
+        5f : 41 5d                   pop    r13
+        61 : 41 5c                   pop    r12
+        63 : 41 5b                   pop    r11
+        65 : 41 5a                   pop    r10
+        67 : 41 59                   pop    r9
+        69 : 41 58                   pop    r8
+        6b : 5a                      pop    rdx
+        6c : 59                      pop    rcx
+        6d : 5b                      pop    rbx
+        6e : 58                      pop    rax
+        000000000000006f <realExit> :
+        6f : 9d                      popf
+        70 : 41 ff e2                jmp    r10*/
+    inline static BYTE shellcode[] = { 0x9C, 0x80, 0x3D, 0x6B, 0x00, 0x00, 0x00, 0x00, 0x75, 0x65, 0x50, 0x53, 0x51, 0x52, 0x41, 0x50, 0x41, 0x51, 0x41, 0x52, 0x41, 0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x55, 0x57, 0x56, 0x48, 0xC7, 0xC0, 0x01, 0x00, 0x00, 0x00, 0xF0, 0x0F, 0xC0, 0x05, 0x43, 0x00, 0x00, 0x00, 0x3C, 0x00, 0x75, 0x24, 0x48, 0xB9, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x48, 0xB8, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0x48, 0x89, 0xE5, 0x48, 0x83, 0xEC, 0x20, 0x48, 0x83, 0xE4, 0xF0, 0xFF, 0xD0, 0x48, 0x89, 0xEC, 0x5E, 0x5F, 0x5D, 0x41, 0x5F, 0x41, 0x5E, 0x41, 0x5D, 0x41, 0x5C, 0x41, 0x5B, 0x41, 0x5A, 0x41, 0x59, 0x41, 0x58, 0x5A, 0x59, 0x5B, 0x58, 0x9D, 0x41, 0xFF, 0xE2, 0x00 };
 
-    void FixShellcode(void* base)
-    {
-        ;
-    }
-#else
-    //    0:  60                      pusha
-    //    1 : 9c                      pushf
-    //    2 : b8 01 00 00 00          mov    eax, 0x1
-    //    7 : f0 0f c0 05 aa aa aa    lock xadd BYTE PTR ds : 0xaaaaaaaa, al
-    //    e : aa
-    //    f : 83 f8 00                cmp    eax, 0x0
-    //    12 : 75 13                   jne    27 < exit >
-    //    14 : 83 ec 40                sub    esp, 0x40
-    //    17 : b8 bb bb bb bb          mov    eax, 0xbbbbbbbb
-    //    1c : 50                      push   eax
-    //    1d : b8 cc cc cc cc          mov    eax, 0xcccccccc
-    //    22 : ff d0                   call   eax
-    //    24 : 83 c4 40                add    esp, 0x40
-    //    00000027 < exit > :
-    //    27 : 9d                      popf
-    //    28 : 61                      popa
-    //    29 : ff e1                   jmp    ecx
-    //    2b : 00                      db '0'
-    inline static BYTE shellcode[] = { 0x60, 0x9C, 0xB8, 0x01, 0x00, 0x00, 0x00, 0xF0, 0x0F, 0xC0, 0x05, 0xAA, 0xAA, 0xAA, 0xAA, 0x83, 0xF8, 0x00, 0x75, 0x13, 0x83, 0xEC, 0x40, 0xB8, 0xBB, 0xBB, 0xBB, 0xBB, 0x50, 0xB8, 0xCC, 0xCC, 0xCC, 0xCC, 0xFF, 0xD0, 0x83, 0xC4, 0x40, 0x9D, 0x61, 0xFF, 0xE1, 0x00 };
     void FixShellcode(void* base, void* target, void* param)
     {
-        *(DWORD*)(&shellcode[11]) = (DWORD)base + 0x2b;
-        *(DWORD*)(&shellcode[0x18]) = (DWORD)param;
-        *(DWORD*)(&shellcode[0x1e]) = (DWORD)target;
+        *(__int64*)(&shellcode[0x36]) = (__int64)param;
+        *(__int64*)(&shellcode[0x40]) = (__int64)target;
+    }
+#else  
+    //    0:  9c                      pushf
+    //    1 : 80 3d aa aa aa aa 00    cmp    BYTE PTR ds : 0xaaaaaaaa, 0x0
+    //    8 : 75 26                   jne    30 < realExit >
+    //    a : 60                      pusha
+    //    b : b8 01 00 00 00          mov    eax, 0x1
+    //    10 : f0 0f c0 05 aa aa aa    lock xadd BYTE PTR ds : 0xaaaaaaaa, al
+    //    17 : aa
+    //    18 : 83 f8 00                cmp    eax, 0x0
+    //    1b : 75 12                   jne    2f < exit>
+    //    1d : 83 ec 40                sub    esp, 0x40
+    //    20 : 68 aa aa aa aa          push   0xaaaaaaaa
+    //    25 : b8 bb bb bb bb          mov    eax, 0xbbbbbbbb
+    //    2a : ff d0                   call   eax
+    //    2c : 83 c4 40                add    esp, 0x40
+    //    0000002f <exit> :
+    //    2f : 61                      popa
+    //    00000030 < realExit > :
+    //    30 : 9d                      popf
+    //    31 : ff e1                   jmp    ecx
+    inline static BYTE shellcode[] = { 0x9C, 0x80, 0x3D, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x75, 0x26, 0x60, 0xB8, 0x01, 0x00, 0x00, 0x00, 0xF0, 0x0F, 0xC0, 0x05, 0xAA, 0xAA, 0xAA, 0xAA, 0x83, 0xF8, 0x00, 0x75, 0x12, 0x83, 0xEC, 0x40, 0x68, 0xAA, 0xAA, 0xAA, 0xAA, 0xB8, 0xBB, 0xBB, 0xBB, 0xBB, 0xFF, 0xD0, 0x83, 0xC4, 0x40, 0x61, 0x9D, 0xFF, 0xE1, 0x00 };
+    
+    void FixShellcode(void* base, void* target, void* param)
+    {
+        *(DWORD*)(&shellcode[3]) = (DWORD)base + 0x33;
+        *(DWORD*)(&shellcode[0x14]) = (DWORD)base + 0x33;
+        *(DWORD*)(&shellcode[0x21]) = (DWORD)param;
+        *(DWORD*)(&shellcode[0x26]) = (DWORD)target;
     }
 #endif
 };
