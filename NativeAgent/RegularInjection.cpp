@@ -4,6 +4,7 @@
 #include <iostream>
 #include "Common.h"
 #include "UndocumentedData.h"
+#include <winternl.h>
 
 class IProcessAccess
 {
@@ -130,6 +131,22 @@ public:
         CloseHandle(handle);
     }
 
+    static HANDLE GetHandleByOpenProcess(int pid)
+    {
+        auto ret = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
+        if (ret == NULL)
+        {
+            Common::ThrowException("OpenProcess failed with %d", GetLastError());
+        }
+        return ret;
+    }
+
+    static HANDLE GetHandleByDuplication(int pid)
+    {
+        Common::ThrowException("Not implemented.");
+        return 0;
+    }
+
 private:
     HANDLE handle = NULL;
 };
@@ -226,31 +243,98 @@ private:
 class LdrLoadDllEntryPoint : public IEntryPoint
 {
 public:
-    virtual bool Prepare()
+    void Prepare(const std::wstring& dllPath)
     {
-        ;
+        // Prepare UNICODE_STRING 
+        UNICODE_STRING sample = {};
+        auto Func_RtlInitUnicodeString = reinterpret_cast<void(__stdcall*)(PUNICODE_STRING, PCWSTR)>(GetProcAddress(GetModuleHandleW(L"NTDLL"), "RtlInitUnicodeString"));
+        Func_RtlInitUnicodeString(&sample, dllPath.c_str());
+        auto remoteUnicodeString = access->AllocateMemory(0, sizeof(sample), PAGE_READWRITE);
+        SIZE_T bytesWritten = 0;
+        access->WriteMemory(remoteUnicodeString, std::vector<BYTE>((BYTE*)&sample, (BYTE*)(&sample + 1)), bytesWritten);
+        auto remoteString = access->AllocateMemory(0, sizeof(wchar_t) * (dllPath.size() + 1), PAGE_READWRITE);
+        access->WriteMemory(remoteString, std::vector<BYTE>((BYTE*)dllPath.c_str(), (BYTE*)(dllPath.c_str() + dllPath.size() + 1)), bytesWritten);
+        auto offset = (UINT64)&sample.Buffer - (UINT64)&sample;
+        access->WriteMemory((char*)remoteUnicodeString + offset, std::vector<BYTE>((BYTE*)&remoteString, (BYTE*)(&remoteString + 1)), bytesWritten);
+
+        // a place for out param HANDLE
+        auto remoteHandlePtr = access->AllocateMemory(0, sizeof(HANDLE), PAGE_READWRITE);
+
+        // get target function addr
+        auto ldrLoadDll_addr = GetProcAddress(GetModuleHandleW(L"NTDLL"), "LdrLoadDll");
+        if (!ldrLoadDll_addr)
+        {
+            Common::ThrowException("Cannot find LdrLoadDll in Ntdll.");
+        }
+
+        // generate bootstrap shellcode to make our entrypoint a function with single parameter
+        AdjustShellcode(ldrLoadDll_addr, remoteUnicodeString, remoteHandlePtr);
+        entry_point = access->AllocateMemory(0, sizeof(shellcode), PAGE_EXECUTE_READWRITE);
+        access->WriteMemory(entry_point, std::vector<BYTE>(shellcode, shellcode + sizeof(shellcode)), bytesWritten);
     }
 
     virtual void* GetEntryPoint() override
     {
-        ;
+        return entry_point;
     }
 
     virtual void* GetParameter() override
     {
-        ;
+        return parameter;
     }
 
     LdrLoadDllEntryPoint(IProcessAccess* access)
     {
         this->access = access;
-        std::exception("Not Implemented");
     }
 
 private:
     IProcessAccess* access = NULL;
     void* entry_point = NULL;
     void* parameter = NULL;
+
+#ifdef _WIN64
+    //    0 : 48 c7 c1 00 00 00 00    mov    rcx, 0x0
+    //    7 : 48 c7 c2 00 00 00 00    mov    rdx, 0x0
+    //    e : 49 b8 aa aa aa aa aa    movabs r8, 0xaaaaaaaaaaaaaaaa
+    //    15 : aa aa aa
+    //    18 : 49 b9 bb bb bb bb bb    movabs r9, 0xbbbbbbbbbbbbbbbb
+    //    1f : bb bb bb
+    //    22 : 48 b8 cc cc cc cc cc    movabs rax, 0xcccccccccccccccc
+    //    29 : cc cc cc
+    //    2c : 55                      push   rbp
+    //    2d : 48 89 e5                mov    rbp, rsp
+    //    30 : 48 83 ec 20             sub    rsp, 0x20
+    //    34 : 48 83 e4 f0             and rsp, 0xfffffffffffffff0
+    //    38 : ff d0                   call   rax
+    //    3a : 48 89 ec                mov    rsp, rbp
+    //    3d : 5d                      pop    rbp
+    //    3e : c3                      ret
+    inline static BYTE shellcode[] = { 0x48, 0xC7, 0xC1, 0x00, 0x00, 0x00, 0x00, 0x48, 0xC7, 0xC2, 0x00, 0x00, 0x00, 0x00, 0x49, 0xB8, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x49, 0xB9, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0x48, 0xB8, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0x55, 0x48, 0x89, 0xE5, 0x48, 0x83, 0xEC, 0x20, 0x48, 0x83, 0xE4, 0xF0, 0xFF, 0xD0, 0x48, 0x89, 0xEC, 0x5D, 0xC3 };
+
+    void AdjustShellcode(void* ldrLoadDll_addr, void* unicode_string, void* handle_ptr)
+    {
+        *(__int64*)(&shellcode[0x1a]) = (__int64)handle_ptr;
+        *(__int64*)(&shellcode[0x10]) = (__int64)unicode_string;
+        *(__int64*)(&shellcode[0x24]) = (__int64)ldrLoadDll_addr;
+    }
+#else
+    //    0:  68 aa aa aa aa          push   0xaaaaaaaa
+    //    5 : 68 bb bb bb bb          push   0xbbbbbbbb
+    //    a : 6a 00                   push   0x0
+    //    c : 6a 00                   push   0x0
+    //    e : b8 cc cc cc cc          mov    eax, 0xcccccccc
+    //    13 : ff d0                   call   eax
+    //    15 : c2 04 00                ret    0x4
+    inline static BYTE shellcode[] = { 0x68, 0xAA, 0xAA, 0xAA, 0xAA, 0x68, 0xBB, 0xBB, 0xBB, 0xBB, 0x6A, 0x00, 0x6A, 0x00, 0xB8, 0xCC, 0xCC, 0xCC, 0xCC, 0xFF, 0xD0, 0xC2, 0x04, 0x00 };
+
+    void AdjustShellcode(void* ldrLoadDll_addr, void* unicode_string, void* handle_ptr)
+    {
+        *(DWORD*)(&shellcode[1]) = (DWORD)handle_ptr;
+        *(DWORD*)(&shellcode[6]) = (DWORD)unicode_string;
+        *(DWORD*)(&shellcode[0xf]) = (DWORD)ldrLoadDll_addr;
+    }
+#endif
 };
 
 class ManualLoadEntryPoint : public IEntryPoint
@@ -258,17 +342,17 @@ class ManualLoadEntryPoint : public IEntryPoint
 public:
     virtual bool Prepare()
     {
-        ;
+        return false;
     }
 
     virtual void* GetEntryPoint() override
     {
-        ;
+        return 0;
     }
 
     virtual void* GetParameter() override
     {
-        ;
+        return 0;
     }
 
     ManualLoadEntryPoint(IProcessAccess* access)
@@ -469,11 +553,6 @@ private:
 #endif
 };
 
-HANDLE GetProcessHandleByDuplication(int pid, DWORD access)
-{
-    return NULL;
-}
-
 void RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllPath, const std::vector<std::string>& methods)
 {
     if (!CheckParameters(methods))
@@ -488,21 +567,13 @@ void RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllP
     std::unique_ptr<IProcessAccess> access;
     if (process_access_method == "OpenProcess")
     {
-        auto target_handle = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
-        if (target_handle == NULL)
-        {
-            Common::ThrowException("OpenProcess failed with %d", GetLastError());
-        }
+        auto target_handle = HandleProcessAccess::GetHandleByOpenProcess(pid);
         access.reset(new HandleProcessAccess(target_handle));
         Common::Print("[+] Process opened.");
     }
     else if (process_access_method == "Duplicate Handle")
     {
-        auto target_handle = GetProcessHandleByDuplication(pid, PROCESS_ALL_ACCESS);
-        if (target_handle == NULL)
-        {
-            Common::ThrowException("Failed to get a handle.");
-        }
+        auto target_handle = HandleProcessAccess::GetHandleByDuplication(pid);
         access.reset(new HandleProcessAccess(target_handle));
         Common::Print("[+] Target handle get.");      
     }
@@ -525,13 +596,13 @@ void RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllP
     else if (entry_point_method == "LdrLoadDll")
     {
         auto ldrLoadDll_entry = new LdrLoadDllEntryPoint(access.get());
-        ldrLoadDll_entry->Prepare();
+        ldrLoadDll_entry->Prepare(dllPath.wstring());
         entry.reset(ldrLoadDll_entry);
         Common::Print("[+] Entrypoint LdrLoadDll() successfully prepared.");
     }
     else if (entry_point_method == "Manual Load")
     {
-        auto manualLoad = new ManualLoadEntryPoint();
+        auto manualLoad = new ManualLoadEntryPoint(access.get());
         manualLoad->Prepare();
         entry.reset(manualLoad);
         Common::Print("[+] Entrypoint manual load successfully prepared.");
@@ -548,7 +619,7 @@ void RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllP
     }
     else if (gain_execution_method == "QueueUserAPC")
     {
-        auto apc = new QueueUserAPCExecuter();
+        auto apc = new QueueUserAPCExecuter(access.get());
         apc->Prepare(entry->GetEntryPoint(), entry->GetParameter());
         executer.reset(apc);
         Common::Print("[+] QueueUserAPC executor set.");

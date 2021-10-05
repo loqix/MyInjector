@@ -179,7 +179,7 @@ namespace MyInjector.Injection
                 string output = proc.StandardOutput.ReadLine();
                 logger.Invoke(output);
             }
-            proc.WaitForExit();
+            // proc.WaitForExit();
             if (proc.ExitCode == 0)
             {
                 return true;
