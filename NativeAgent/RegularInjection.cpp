@@ -5,6 +5,7 @@
 #include "Common.h"
 #include "UndocumentedData.h"
 #include <winternl.h>
+#include <tlhelp32.h>
 
 class IProcessAccess
 {
@@ -33,6 +34,27 @@ public:
     virtual HANDLE CreateThread(void* addr, void* param, DWORD flag, DWORD& threadId) = 0;
 
     virtual void SetProcessInstrumentCallback(void* target) = 0;
+
+    virtual DWORD GetProcessId() = 0;
+
+    virtual std::vector<DWORD> EnumThreads() = 0;
+
+    /// <summary>
+    /// Get target thread handle.
+    /// DONT MIX THIS WITH Windows's API OpenThread()
+    /// </summary>
+    /// <param name="threadId"></param>
+    /// <param name="access">example: THREAD_ALL_ACCESS</param>
+    /// <returns></returns>
+    virtual HANDLE OpenThread(DWORD threadId, DWORD access) = 0;
+
+    /// <summary>
+    /// DONT MIX THIS Windows's API!!
+    /// </summary>
+    /// <param name="pfnAPC"></param>
+    /// <param name="hThread"></param>
+    /// <param name="dwData"></param>
+    virtual void QueueUserAPC(PAPCFUNC pfnAPC, HANDLE hThread, ULONG_PTR dwData) = 0;
 };
 
 class HandleProcessAccess : public IProcessAccess
@@ -82,7 +104,7 @@ public:
     {
         if (Common::SetPrivilege(L"SeDebugPrivilege", true))
         {
-            Common::Print("[+] DebugPrivilege enabled.");
+            Common::Print("[+] SeDebugPrivilege enabled.");
         }
         else
         {
@@ -119,9 +141,69 @@ public:
         }
     }
 
-    HandleProcessAccess(HANDLE handle)
+    virtual DWORD GetProcessId() override
+    {
+        return pid;
+    }
+
+    virtual std::vector<DWORD> EnumThreads() override
+    {
+        std::vector<DWORD> ret;
+        auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0); // second parameter is IGNORED, all threads in the system are captured.
+        if (snapshot == INVALID_HANDLE_VALUE)
+        {
+            Common::ThrowException("CreateToolHelp32Snapshot() failed with last error: %d.", GetLastError());
+        }
+        auto handleDeleter = [](HANDLE h) -> void {CloseHandle(h); };
+        std::unique_ptr<void, decltype(handleDeleter)> holder1(snapshot, handleDeleter);
+
+        THREADENTRY32 threadData = {};
+        threadData.dwSize = sizeof(threadData);
+        if (!Thread32First(snapshot, &threadData))
+        {
+            Common::ThrowException("Thread32First() failed with last error: %d.", GetLastError());
+        }
+        if (threadData.th32OwnerProcessID == pid)
+        {
+            ret.push_back(threadData.th32ThreadID);
+        }
+        while (true)
+        {
+            threadData.dwSize = sizeof(threadData);
+            if (!Thread32Next(snapshot, &threadData))
+            {
+                break;
+            } 
+            if (threadData.th32OwnerProcessID == pid)
+            {
+                ret.push_back(threadData.th32ThreadID);
+            }
+        }
+        return ret;
+    }
+
+    HANDLE OpenThread(DWORD threadId, DWORD access) override
+    {
+        auto ret = ::OpenThread(access, false, threadId);
+        if (!ret)
+        {
+            Common::ThrowException("OpenThread() failed with last error: %d.", GetLastError());
+        }
+        return ret;
+    }
+
+    void QueueUserAPC(PAPCFUNC pfnAPC, HANDLE hThread, ULONG_PTR dwData) override
+    {
+        if (!::QueueUserAPC(pfnAPC, hThread, dwData))
+        {
+            Common::ThrowException("QueueUserAPC() failed with last error: %d.", GetLastError());
+        }
+    }
+
+    HandleProcessAccess(HANDLE handle, DWORD pid)
     {
         this->handle = handle;
+        this->pid = pid;
     }
 
     HandleProcessAccess(const HandleProcessAccess& another) = delete;
@@ -149,6 +231,7 @@ public:
 
 private:
     HANDLE handle = NULL;
+    DWORD pid = 0;
 };
 
 class KernelProcessAccess : public IProcessAccess
@@ -178,6 +261,28 @@ public:
     {
         return;
     }
+
+    virtual DWORD GetProcessId() override
+    {
+        return 0;
+    }
+
+    virtual std::vector<DWORD> EnumThreads() override
+    {
+        std::vector<DWORD> ret;
+        return ret;
+    }
+
+    HANDLE OpenThread(DWORD threadId, DWORD access) override
+    {
+        return 0;
+    }
+
+    void QueueUserAPC(PAPCFUNC pfnAPC, HANDLE hThread, ULONG_PTR dwData) override
+    {
+        
+    }
+
 
     KernelProcessAccess()
     {
@@ -358,7 +463,7 @@ public:
     ManualLoadEntryPoint(IProcessAccess* access)
     {
         this->access = access;
-        std::exception("Not Implemented");
+        Common::ThrowException("Not Implemented");
     }
 
 private:
@@ -403,30 +508,107 @@ private:
     void* parameter = NULL;
 };
 
+/// <summary>
+/// Gain execution by deliver apc to target process's threads
+/// This is NOT very reliable, as an apc needs a thread to be alertable to execute.
+/// Therefore we actually queue one apc for every thread in target process, hoping one of which will get executed.
+/// </summary>
 class QueueUserAPCExecuter : public IExecuter
 {
 public:
     virtual void Go() override
     {
-        ;
+        auto threads = access->EnumThreads();
+        auto deleter = [](HANDLE h) -> void { CloseHandle(h); };
+        DWORD deliverCount = 0;
+        for (auto threadId : threads)
+        {      
+            try
+            {        
+                if (ShouldSkipThisThreadForApc(threadId))
+                {
+                    continue;
+                }
+                std::unique_ptr<void, decltype(deleter)> threadHandle(NULL, deleter);
+                auto handle = access->OpenThread(threadId, THREAD_ALL_ACCESS);
+                threadHandle.reset(handle);
+                access->QueueUserAPC((PAPCFUNC)startAddr, handle, (ULONG_PTR)parameter);
+                deliverCount += 1;
+            }
+            catch (const std::exception& e)
+            {
+                Common::Print("[!] %s", e.what());
+                continue;
+            }
+        }
+        Common::Print("[+] APC delivered to %d threads.", deliverCount);
     }
 
-    void Prepare(void* startAddr, void* parameter)
+    void Prepare(void* target, void* param)
     {
-        this->startAddr = startAddr;
-        this->parameter = parameter;
+        startAddr = access->AllocateMemory(0, sizeof(shellcode), PAGE_EXECUTE_READWRITE);
+        AdjustShellcode(target, param, startAddr);
+        SIZE_T bytesWritten = 0;
+        access->WriteMemory(startAddr, std::vector<BYTE>(shellcode, shellcode + sizeof(shellcode)), bytesWritten);
+        Common::Print("[+] Bootstrap shellcode written to 0x%p", startAddr);
     }
 
     QueueUserAPCExecuter(IProcessAccess* access)
     {
         this->access = access;
-        throw std::exception("Not implemented");
     }
 
 private:
+    bool ShouldSkipThisThreadForApc(DWORD threadId)
+    {
+        return false;
+    }
+
     IProcessAccess* access = NULL;
     void* startAddr = NULL;
     void* parameter = NULL;
+    void* realStartAddr = NULL;
+
+#ifdef _WIN64
+    //    0:  83 3d 3b 00 00 00 00    cmp    DWORD PTR[rip + 0x3b], 0x0        # 42 < exit + 0x1 >
+    //    7:  75 38                   jne    41 < exit >
+    //    9 : b8 01 00 00 00          mov    eax, 0x1
+    //    e : f0 0f c1 05 2c 00 00    lock xadd DWORD PTR[rip + 0x2c], eax        # 42 < exit + 0x1 >
+    //    15: 00
+    //    16 : 83 f8 00                cmp    eax, 0x0
+    //    19 : 75 26                   jne    41 < exit >
+    //    1b : 55                      push   rbp
+    //    1c : 48 89 e5                mov    rbp, rsp
+    //    1f : 48 83 ec 20             sub    rsp, 0x20
+    //    23 : 48 83 e4 f0 and rsp, 0xfffffffffffffff0
+    //    27 : 48 b9 aa aa aa aa aa    movabs rcx, 0xaaaaaaaaaaaaaaaa
+    //    2e : aa aa aa
+    //    31 : 48 b8 bb bb bb bb bb    movabs rax, 0xbbbbbbbbbbbbbbbb
+    //    38 : bb bb bb
+    //    3b : ff d0                   call   rax
+    //    3d : 48 89 ec                mov    rsp, rbp
+    //    40 : 5d                      pop    rbp
+    //    0000000000000041 < exit > :
+    //    41 : c3                      ret
+    //    42 : dd '0000'
+    inline static BYTE shellcode[] = { 0x83, 0x3D, 0x3B, 0x00, 0x00, 0x00, 0x00, 0x75, 0x38, 0xB8, 0x01, 0x00, 0x00, 0x00, 0xF0, 0x0F, 0xC1, 0x05, 0x2C, 0x00, 0x00, 0x00, 0x83, 0xF8, 0x00, 0x75, 0x26, 0x55, 0x48, 0x89, 0xE5, 0x48, 0x83, 0xEC, 0x20, 0x48, 0x83, 0xE4, 0xF0, 0x48, 0xB9, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x48, 0xB8, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0xBB, 0xFF, 0xD0, 0x48, 0x89, 0xEC, 0x5D, 0xC3, 0x00, 0x00, 0x00, 0x00 };
+
+    void AdjustShellcode(void* entry, void* param, void* base)
+    {
+        *(__int64*)(&shellcode[0x29]) = (__int64)param;
+        *(__int64*)(&shellcode[0x33]) = (__int64)entry;
+    }
+#else
+    inline static BYTE shellcode[] = { 0x83, 0x3D, 0xCC, 0xCC, 0xCC, 0xCC, 0x00, 0x75, 0x26, 0x60, 0xB8, 0x01, 0x00, 0x00, 0x00, 0xF0, 0x0F, 0xC1, 0x05, 0xCC, 0xCC, 0xCC, 0xCC, 0x83, 0xF8, 0x00, 0x75, 0x12, 0x83, 0xEC, 0x20, 0x68, 0xAA, 0xAA, 0xAA, 0xAA, 0xB8, 0xBB, 0xBB, 0xBB, 0xBB, 0xFF, 0xD0, 0x83, 0xC4, 0x20, 0x61, 0xC2, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+    void AdjustShellcode(void* entry, void* param, void* base)
+    {
+        *(DWORD*)(&shellcode[0x2]) = (DWORD)base + 0x32;
+        *(DWORD*)(&shellcode[0x13]) = (DWORD)base + 0x32;
+        *(DWORD*)(&shellcode[0x20]) = (DWORD)param;
+        *(DWORD*)(&shellcode[0x25]) = (DWORD)entry;
+    }
+#endif
 };
 
 // See https://splintercod3.blogspot.com/p/weaponizing-mapping-injection-with.html
@@ -568,13 +750,13 @@ void RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllP
     if (process_access_method == "OpenProcess")
     {
         auto target_handle = HandleProcessAccess::GetHandleByOpenProcess(pid);
-        access.reset(new HandleProcessAccess(target_handle));
+        access.reset(new HandleProcessAccess(target_handle, pid));
         Common::Print("[+] Process opened.");
     }
     else if (process_access_method == "Duplicate Handle")
     {
         auto target_handle = HandleProcessAccess::GetHandleByDuplication(pid);
-        access.reset(new HandleProcessAccess(target_handle));
+        access.reset(new HandleProcessAccess(target_handle, pid));
         Common::Print("[+] Target handle get.");      
     }
     else if (process_access_method == "Kernel")
