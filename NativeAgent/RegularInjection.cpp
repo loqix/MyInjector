@@ -286,7 +286,7 @@ public:
 
     KernelProcessAccess()
     {
-        throw std::exception("Not implemented");
+        Common::ThrowException("Not implemented");
     }
 
 private:
@@ -559,8 +559,10 @@ public:
     }
 
 private:
+    // See https://github.com/DarthTon/Blackbone/blob/master/src/BlackBoneDrv/Loader.c BBSkipThread() 
     bool ShouldSkipThisThreadForApc(DWORD threadId)
     {
+        // TODO: implement this function if it turns out to be neccessary. For now, i think it is not.
         return false;
     }
 
@@ -790,7 +792,7 @@ void RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllP
         Common::Print("[+] Entrypoint manual load successfully prepared.");
     }
 
-    // 3. execute our entry point in target's context
+    // 3. Prepare executer to execute our entry point in target's context
     std::unique_ptr<IExecuter> executer;
     if (gain_execution_method == "CreateRemoteThread")
     {
