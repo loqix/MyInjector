@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <VersionHelpers.h>
+#include <filesystem>
 
 namespace Common
 {
@@ -128,5 +129,15 @@ namespace Common
         return TRUE;
     }
 
+    inline std::filesystem::path GetMainModuleFolder()
+    {
+        std::unique_ptr<wchar_t[]> buffer = std::make_unique<wchar_t[]>(2048);
+        if (!GetModuleFileNameW(0, buffer.get(), 2048))
+        {
+            ThrowException("GetModuleFileNameW() failed with last error %d.", GetLastError());
+        }
+        std::filesystem::path mainModule = buffer.get();
+        return mainModule.parent_path();
+    }
 
 }

@@ -161,10 +161,12 @@
   <ItemGroup>
     <ClCompile Include="NativeAgent.cpp" />
     <ClCompile Include="RegularInjection.cpp" />
+    <ClCompile Include="SetWindowHookInjection.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common.h" />
     <ClInclude Include="RegularInjection.h" />
+    <ClInclude Include="SetWindowHookInjection.h" />
     <ClInclude Include="UndocumentedData.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

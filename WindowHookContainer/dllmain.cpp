@@ -1,25 +1,41 @@
 ﻿// dllmain.cpp : 定义 DLL 应用程序的入口点。
 #include "pch.h"
 
-extern "C" __declspec(dllexport) LRESULT CALLBACK WindowHookProc(int Code, WPARAM wParam, LPARAM lParam)
+extern "C"
 {
-    return CallNextHookEx(NULL, Code, wParam, lParam);
+    __declspec(dllexport) LRESULT CALLBACK WindowHookProc(int Code, WPARAM wParam, LPARAM lParam)
+    {
+        return CallNextHookEx(NULL, Code, wParam, lParam);
+    }
 }
+
+#pragma pack(push, 1)
+struct SetWindowHookInjectionParam
+{
+    DWORD targetPid;
+    wchar_t dllPath[1024];
+};
+#pragma pack(pop)
 
 std::wstring GetTargetDllPath()
 {
     auto fileMap = OpenFileMappingW(FILE_MAP_ALL_ACCESS, false, L"WINDOWHOOK-PARAM-CUBIC");
     if (!fileMap)
     {
-        throw std::exception();
+        return L"";
     }
-    auto view = MapViewOfFile(fileMap, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    auto view = (SetWindowHookInjectionParam*)MapViewOfFile(fileMap, FILE_MAP_ALL_ACCESS, 0, 0, 0);
     if (!view)
     {
         CloseHandle(fileMap);
-        throw std::exception();
+        return L"";
     }
-    std::wstring ret = (wchar_t*)view;
+    if (view->targetPid != GetCurrentProcessId())
+    {
+        CloseHandle(fileMap);
+        return L"";
+    }
+    std::wstring ret = view->dllPath;
     UnmapViewOfFile(view);  
     CloseHandle(fileMap);
     return ret;
@@ -28,6 +44,10 @@ std::wstring GetTargetDllPath()
 void Payload()
 {
     auto dllPath = GetTargetDllPath();
+    if (dllPath == L"")
+    {
+        return;
+    }
     UNICODE_STRING path = {};
     auto Func_RtlInitUnicodeString = reinterpret_cast<void(__stdcall*)(PUNICODE_STRING, PCWSTR)>(GetProcAddress(GetModuleHandleW(L"NTDLL"), "RtlInitUnicodeString"));
     Func_RtlInitUnicodeString(&path, dllPath.c_str());

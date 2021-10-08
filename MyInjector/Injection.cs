@@ -130,8 +130,8 @@ namespace MyInjector.Injection
             };
             MajorMethod Major_SetWindowHook = new MajorMethod
             {
-                Name = "SetWindowHook",
-                Description = "Injection using API SetWindowHook().",
+                Name = "SetWindowsHook",
+                Description = "Injection using API SetWindowsHookEx().",
                 MinorNodes = null
             };
             MajorMethod Major_IME = new MajorMethod

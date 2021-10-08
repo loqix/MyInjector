@@ -353,6 +353,10 @@ public:
         // Prepare UNICODE_STRING 
         UNICODE_STRING sample = {};
         auto Func_RtlInitUnicodeString = reinterpret_cast<void(__stdcall*)(PUNICODE_STRING, PCWSTR)>(GetProcAddress(GetModuleHandleW(L"NTDLL"), "RtlInitUnicodeString"));
+        if (!Func_RtlInitUnicodeString)
+        {
+            Common::ThrowException("Cannot find RtlInitUnicodeString() in Ntdll.");
+        }
         Func_RtlInitUnicodeString(&sample, dllPath.c_str());
         auto remoteUnicodeString = access->AllocateMemory(0, sizeof(sample), PAGE_READWRITE);
         SIZE_T bytesWritten = 0;

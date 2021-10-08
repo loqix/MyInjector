@@ -2,6 +2,7 @@
 //
 
 #include "RegularInjection.h"
+#include "SetWindowHookInjection.h"
 #include <iostream>
 #include "Common.h"
 
@@ -32,10 +33,10 @@ int main(int argc, char* argv[], char* envp[])
             RegularInjectionMgr::DoInjection(pid, dllPath, methods);
             return 0;
         }
-        else if (major_method == "SetWindowHook")
+        else if (major_method == "SetWindowsHook")
         {
-            Common::Print("Not implemented.");
-            return -1;
+            SetWindowsHookInjectionMgr::DoInjection(pid, dllPath, methods);
+            return 0;
         }
         else if (major_method == "IME")
         {
