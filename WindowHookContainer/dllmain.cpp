@@ -1,13 +1,8 @@
 ﻿// dllmain.cpp : 定义 DLL 应用程序的入口点。
-#include "pch.h"
-
-extern "C"
-{
-    __declspec(dllexport) LRESULT CALLBACK WindowHookProc(int Code, WPARAM wParam, LPARAM lParam)
-    {
-        return CallNextHookEx(NULL, Code, wParam, lParam);
-    }
-}
+#include "framework.h"
+#include <string>
+#include <thread>
+#include <winternl.h>
 
 #pragma pack(push, 1)
 struct SetWindowHookInjectionParam

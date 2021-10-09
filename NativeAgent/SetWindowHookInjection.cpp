@@ -86,6 +86,8 @@ void TriggerWindowsHook(DWORD pid, DWORD tid)
     SendMessageW(param.outWindow, WM_ACTIVATE, WA_CLICKACTIVE, 0);
     SendMessageW(param.outWindow, WM_MOUSEMOVE, MK_LBUTTON, rand());
     SendMessageW(param.outWindow, WM_ACTIVATEAPP, TRUE, tid);
+
+    Sleep(2000);
 }
 
 
