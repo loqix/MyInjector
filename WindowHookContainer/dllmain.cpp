@@ -27,6 +27,7 @@ std::wstring GetTargetDllPath()
     }
     if (view->targetPid != GetCurrentProcessId())
     {
+        UnmapViewOfFile(view);
         CloseHandle(fileMap);
         return L"";
     }
