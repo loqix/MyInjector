@@ -284,12 +284,19 @@ public:
     }
 
 
-    KernelProcessAccess()
+    KernelProcessAccess(DWORD pid)
     {
-        Common::ThrowException("Not implemented");
+        this->pid = pid;
+    }
+
+    virtual ~KernelProcessAccess()
+    {
+        CloseHandle(driverHandle);
     }
 
 private:
+    DWORD pid;
+    HANDLE driverHandle = NULL;
     
 };
 
@@ -767,7 +774,7 @@ void RegularInjectionMgr::DoInjection(int pid, const std::filesystem::path& dllP
     }
     else if (process_access_method == "Kernel")
     {
-        auto kernelAccess = new KernelProcessAccess();
+        auto kernelAccess = new KernelProcessAccess(pid);
         access.reset(kernelAccess);
         Common::Print("[+] Kernel access prepared.");
     }

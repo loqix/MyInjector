@@ -159,12 +159,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="KernelAccess\KernelAccess.cpp" />
     <ClCompile Include="NativeAgent.cpp" />
     <ClCompile Include="RegularInjection.cpp" />
     <ClCompile Include="SetWindowHookInjection.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common.h" />
+    <ClInclude Include="KernelAccess\interface.h" />
+    <ClInclude Include="KernelAccess\KernelAccess.h" />
     <ClInclude Include="RegularInjection.h" />
     <ClInclude Include="SetWindowHookInjection.h" />
     <ClInclude Include="UndocumentedData.h" />

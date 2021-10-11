@@ -21,6 +21,11 @@ namespace Common
         free(formatted);
     }
 
+    /// <summary>
+    /// Caution: memory leak in this function
+    /// </summary>
+    /// <param name="fmt"></param>
+    /// <param name=""></param>
     inline void ThrowException(const char* fmt, ...)
     {
         va_list args;

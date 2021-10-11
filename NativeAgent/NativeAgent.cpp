@@ -8,14 +8,13 @@
 
 int main(int argc, char* argv[], char* envp[])
 {
-    // DEBUG
-    std::cout << "[D] ";
-    for (int i = 1; i < argc; i++)
-    {
-        std::cout << argv[i] << " ";
-    }
-    std::cout << std::endl;
-
+    //// DEBUG
+    //std::cout << "[D] ";
+    //for (int i = 1; i < argc; i++)
+    //{
+    //    std::cout << argv[i] << " ";
+    //}
+    //std::cout << std::endl;
 
     try
     {

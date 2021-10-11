@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="kernel">
+      <UniqueIdentifier>{3b74dd30-419d-4ffb-b2c8-ee83a5e33001}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="NativeAgent.cpp">
@@ -23,6 +26,9 @@
     </ClCompile>
     <ClCompile Include="SetWindowHookInjection.cpp">
       <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="KernelAccess\KernelAccess.cpp">
+      <Filter>kernel</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -37,6 +43,12 @@
     </ClInclude>
     <ClInclude Include="SetWindowHookInjection.h">
       <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="KernelAccess\interface.h">
+      <Filter>kernel</Filter>
+    </ClInclude>
+    <ClInclude Include="KernelAccess\KernelAccess.h">
+      <Filter>kernel</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
