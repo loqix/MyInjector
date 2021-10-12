@@ -6,6 +6,7 @@
 #include "UndocumentedData.h"
 #include <winternl.h>
 #include <tlhelp32.h>
+#include "KernelAccess/KernelAccess.h"
 
 class IProcessAccess
 {
@@ -30,7 +31,7 @@ public:
     /// <param name="param">Start routine's parameter</param>
     /// <param name="flag">Example: CREATE_SUSPENDED</param>
     /// <param name="threadId"></param>
-    /// <returns>Handle to the thread</returns>
+    /// <returns>Handle to the thread. return null if the handle is not created</returns>
     virtual HANDLE CreateThread(void* addr, void* param, DWORD flag, DWORD& threadId) = 0;
 
     virtual void SetProcessInstrumentCallback(void* target) = 0;
@@ -239,21 +240,23 @@ class KernelProcessAccess : public IProcessAccess
 public:
     virtual void ReadMemory(void* addr, SIZE_T len, std::vector<BYTE>& dataRead) override
     {
-        return ;
+        // These api are designed to read small thunk of memory, so it won't matter if the length is a DWORD or QWORD. Again, this is NOT a project for production.
+        ka.ReadProcessMemory(pid, addr, (DWORD)len, dataRead);
     }
 
     virtual void WriteMemory(void* addr, const std::vector<BYTE>& data, SIZE_T& bytesWritten) override
     {
-        return ;
+        bytesWritten = ka.WriteProcessMemory(pid, addr, data);
     }
 
     virtual void* AllocateMemory(void* addr, SIZE_T len, DWORD protect) override
     {
-        return NULL;
+        return ka.AllocateRemoteMemory(pid, addr, (DWORD)len, protect);
     }
 
     virtual HANDLE CreateThread(void* addr, void* param, DWORD flag, DWORD& threadId) override
     {
+        threadId = ka.CreateRemoteThread(pid, addr, param, flag);
         return NULL;
     }
 
@@ -264,7 +267,7 @@ public:
 
     virtual DWORD GetProcessId() override
     {
-        return 0;
+        return pid;
     }
 
     virtual std::vector<DWORD> EnumThreads() override
@@ -289,15 +292,9 @@ public:
         this->pid = pid;
     }
 
-    virtual ~KernelProcessAccess()
-    {
-        CloseHandle(driverHandle);
-    }
-
 private:
     DWORD pid;
-    HANDLE driverHandle = NULL;
-    
+    KernelAccess ka;
 };
 
 class IEntryPoint
@@ -496,9 +493,17 @@ public:
     {
         DWORD threadId = 0;
         auto handle = access->CreateThread(startAddr, parameter, 0, threadId);
-        if (WAIT_OBJECT_0 != WaitForSingleObject(handle, 5 * 1000)) // wait for 5 seconds for the LoadLibrary() call to return.
+        Common::Print("[+] New thread created, id %lu.", threadId);
+        if (handle == NULL)
         {
-            Common::Print("[!] New thread does not return in 5 seconds.");
+            Common::Print("[+] Skip waiting for this thread.");
+        }
+        else
+        {
+            if (WAIT_OBJECT_0 == WaitForSingleObject(handle, 5 * 1000)) // wait for 5 seconds for the LoadLibrary() call to return.
+            {
+                Common::Print("[+] New thread completed.");
+            }
         }
     }
 

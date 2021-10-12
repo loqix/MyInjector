@@ -14,9 +14,24 @@ public:
 
     void ReadProcessMemory(DWORD pid, void* addr, DWORD length, std::vector<BYTE>& out);
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="pid"></param>
+    /// <param name="addr"></param>
+    /// <param name="data"></param>
+    /// <returns>Number of bytes written</returns>
     DWORD WriteProcessMemory(DWORD pid, void* addr, const std::vector<BYTE>& data);
 
-    DWORD CreateProcessThread(DWORD pid, void* addr, void* param, DWORD flag);
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="pid"></param>
+    /// <param name="addr"></param>
+    /// <param name="param"></param>
+    /// <param name="flag"></param>
+    /// <returns>the thread id of the newly created thread</returns>
+    DWORD CreateRemoteThread(DWORD pid, void* addr, void* param, DWORD flag);
 
 private:
     HANDLE driverHandle = NULL;
