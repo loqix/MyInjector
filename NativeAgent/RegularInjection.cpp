@@ -38,7 +38,41 @@ public:
 
     virtual DWORD GetProcessId() = 0;
 
-    virtual std::vector<DWORD> EnumThreads() = 0;
+    virtual std::vector<DWORD> EnumThreads()
+    {
+        std::vector<DWORD> ret;
+        auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0); // second parameter is IGNORED, all threads in the system are captured.
+        if (snapshot == INVALID_HANDLE_VALUE)
+        {
+            Common::ThrowException("CreateToolHelp32Snapshot() failed with last error: %d.", GetLastError());
+        }
+        auto handleDeleter = [](HANDLE h) -> void {CloseHandle(h); };
+        std::unique_ptr<void, decltype(handleDeleter)> holder1(snapshot, handleDeleter);
+
+        THREADENTRY32 threadData = {};
+        threadData.dwSize = sizeof(threadData);
+        if (!Thread32First(snapshot, &threadData))
+        {
+            Common::ThrowException("Thread32First() failed with last error: %d.", GetLastError());
+        }
+        if (threadData.th32OwnerProcessID == GetProcessId())
+        {
+            ret.push_back(threadData.th32ThreadID);
+        }
+        while (true)
+        {
+            threadData.dwSize = sizeof(threadData);
+            if (!Thread32Next(snapshot, &threadData))
+            {
+                break;
+            }
+            if (threadData.th32OwnerProcessID == GetProcessId())
+            {
+                ret.push_back(threadData.th32ThreadID);
+            }
+        }
+        return ret;
+    }
 
     /// <summary>
     /// Get target thread handle.
@@ -55,7 +89,13 @@ public:
     /// <param name="pfnAPC"></param>
     /// <param name="hThread"></param>
     /// <param name="dwData"></param>
-    virtual void QueueUserAPC(PAPCFUNC pfnAPC, HANDLE hThread, ULONG_PTR dwData) = 0;
+    virtual void QueueUserAPC(PAPCFUNC pfnAPC, DWORD tid, ULONG_PTR dwData) = 0;
+
+    /// <summary>
+    /// If the queued apc can be guaranteed to be executed, return true
+    /// </summary>
+    /// <returns></returns>
+    virtual bool IsAPCReliable() = 0;
 };
 
 class HandleProcessAccess : public IProcessAccess
@@ -149,38 +189,7 @@ public:
 
     virtual std::vector<DWORD> EnumThreads() override
     {
-        std::vector<DWORD> ret;
-        auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0); // second parameter is IGNORED, all threads in the system are captured.
-        if (snapshot == INVALID_HANDLE_VALUE)
-        {
-            Common::ThrowException("CreateToolHelp32Snapshot() failed with last error: %d.", GetLastError());
-        }
-        auto handleDeleter = [](HANDLE h) -> void {CloseHandle(h); };
-        std::unique_ptr<void, decltype(handleDeleter)> holder1(snapshot, handleDeleter);
-
-        THREADENTRY32 threadData = {};
-        threadData.dwSize = sizeof(threadData);
-        if (!Thread32First(snapshot, &threadData))
-        {
-            Common::ThrowException("Thread32First() failed with last error: %d.", GetLastError());
-        }
-        if (threadData.th32OwnerProcessID == pid)
-        {
-            ret.push_back(threadData.th32ThreadID);
-        }
-        while (true)
-        {
-            threadData.dwSize = sizeof(threadData);
-            if (!Thread32Next(snapshot, &threadData))
-            {
-                break;
-            } 
-            if (threadData.th32OwnerProcessID == pid)
-            {
-                ret.push_back(threadData.th32ThreadID);
-            }
-        }
-        return ret;
+        return IProcessAccess::EnumThreads();
     }
 
     HANDLE OpenThread(DWORD threadId, DWORD access) override
@@ -193,12 +202,20 @@ public:
         return ret;
     }
 
-    void QueueUserAPC(PAPCFUNC pfnAPC, HANDLE hThread, ULONG_PTR dwData) override
+    void QueueUserAPC(PAPCFUNC pfnAPC, DWORD tid, ULONG_PTR dwData) override
     {
-        if (!::QueueUserAPC(pfnAPC, hThread, dwData))
+        auto thread = this->OpenThread(tid, THREAD_ALL_ACCESS);
+        auto deleter = [](void* p) -> void { CloseHandle(p); };
+        std::unique_ptr<void, decltype(deleter)> holder(thread, deleter);
+        if (!::QueueUserAPC(pfnAPC, thread, dwData))
         {
             Common::ThrowException("QueueUserAPC() failed with last error: %d.", GetLastError());
         }
+    }
+
+    bool IsAPCReliable() override
+    {
+        return false;
     }
 
     HandleProcessAccess(HANDLE handle, DWORD pid)
@@ -262,6 +279,7 @@ public:
 
     virtual void SetProcessInstrumentCallback(void* target) override
     {
+        throw std::exception("Not implemented");
         return;
     }
 
@@ -272,18 +290,23 @@ public:
 
     virtual std::vector<DWORD> EnumThreads() override
     {
-        std::vector<DWORD> ret;
-        return ret;
+        return IProcessAccess::EnumThreads();
     }
 
     HANDLE OpenThread(DWORD threadId, DWORD access) override
     {
+        throw std::exception("Not implemented");
         return 0;
     }
 
-    void QueueUserAPC(PAPCFUNC pfnAPC, HANDLE hThread, ULONG_PTR dwData) override
+    void QueueUserAPC(PAPCFUNC pfnAPC, DWORD tid, ULONG_PTR dwData) override
     {
-        
+        ka.QueueUserAPC(tid, pfnAPC, (void*)dwData, true);
+    }
+
+    bool IsAPCReliable() override
+    {
+        return true;
     }
 
 
@@ -535,7 +558,6 @@ public:
     virtual void Go() override
     {
         auto threads = access->EnumThreads();
-        auto deleter = [](HANDLE h) -> void { CloseHandle(h); };
         DWORD deliverCount = 0;
         for (auto threadId : threads)
         {      
@@ -545,11 +567,14 @@ public:
                 {
                     continue;
                 }
-                std::unique_ptr<void, decltype(deleter)> threadHandle(NULL, deleter);
-                auto handle = access->OpenThread(threadId, THREAD_ALL_ACCESS);
-                threadHandle.reset(handle);
-                access->QueueUserAPC((PAPCFUNC)startAddr, handle, (ULONG_PTR)parameter);
+                access->QueueUserAPC((PAPCFUNC)startAddr, threadId, (ULONG_PTR)parameter);
                 deliverCount += 1;
+                // for reliable apc, queue one thread should be enough
+                if (access->IsAPCReliable())
+                {
+                    Common::Print("[+] Reliable APC queued.");
+                    break;
+                }
             }
             catch (const std::exception& e)
             {
@@ -557,7 +582,7 @@ public:
                 continue;
             }
         }
-        Common::Print("[+] APC delivered to %d threads.", deliverCount);
+        Common::Print("[+] APC delivered to %d thread(s).", deliverCount);
     }
 
     void Prepare(void* target, void* param)

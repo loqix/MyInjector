@@ -87,3 +87,19 @@ DWORD KernelAccess::CreateRemoteThread(DWORD pid, void* addr, void* param, DWORD
     }
     return response.threadID;
 }
+
+void KernelAccess::QueueUserAPC(DWORD tid, void* addr, void* param, bool forceExecute)
+{
+    KCProtocols::REQUEST_QUEUE_USER_APC request = {};
+    KCProtocols::RESPONSE_QUEUE_USER_APC response = {};
+    request.tid = tid;
+    request.apcRoutine = (UINT64)addr;
+    request.apcParam = (UINT64)param;
+    request.forceExecute = forceExecute;
+    DWORD bytesReturned = 0;
+    if (!DeviceIoControl(driverHandle, CC_QUEUE_USER_APC, &request, sizeof(request), &response, sizeof(response), &bytesReturned, 0))
+    {
+        Common::ThrowException("Queue user APC failed.");
+    }
+    return;
+}

@@ -33,6 +33,8 @@ public:
     /// <returns>the thread id of the newly created thread</returns>
     DWORD CreateRemoteThread(DWORD pid, void* addr, void* param, DWORD flag);
 
+    void QueueUserAPC(DWORD tid, void* addr, void* param, bool forceExecute);
+
 private:
     HANDLE driverHandle = NULL;
 };
