@@ -12,7 +12,7 @@ KernelAccess::KernelAccess()
 
 KernelAccess::~KernelAccess()
 {
-    CloseHandle(driverHandle);
+    ::CloseHandle(driverHandle);
 }
 
 void* KernelAccess::AllocateRemoteMemory(DWORD pid, void* addr, DWORD length, DWORD protect)
@@ -70,6 +70,54 @@ DWORD KernelAccess::WriteProcessMemory(DWORD pid, void* addr, const std::vector<
         Common::ThrowException("Write process memory failed.");
     }
     return response.bytesWritten;
+}
+
+UINT64 KernelAccess::OpenProcess(DWORD pid, DWORD access)
+{
+    KCProtocols::REQUEST_OPEN_PROCESS request = {};
+    KCProtocols::RESPONSE_OPEN_PROCESS response = {};
+    request.pid = pid;
+    request.access = access;
+    response.kernelModeHandle = 0;
+
+    DWORD bytesReturned = 0;
+    if (!DeviceIoControl(driverHandle, CC_OPEN_PROCESS, &request, sizeof(request), &response, sizeof(response), &bytesReturned, 0))
+    {
+        Common::ThrowException("Call to NtOpenProcess() failed.");
+    }
+    return response.kernelModeHandle;
+}
+
+void KernelAccess::CloseHandle(UINT64 h)
+{
+    KCProtocols::REQUEST_CLOSE_HANDLE request = {};
+    KCProtocols::RESPONSE_CLOSE_HANDLE response = {};
+    request.kernelModeHandle = h;
+
+    DWORD bytesReturned = 0;
+    if (!DeviceIoControl(driverHandle, CC_CLOSE_HANDLE, &request, sizeof(request), &response, sizeof(response), &bytesReturned, 0))
+    {
+        Common::ThrowException("Call to NtClose() failed.");
+    }
+    return ;
+}
+
+void KernelAccess::SetInformationProcess(UINT64 kernelModeHandle, DWORD processInfoClass, const std::vector<BYTE>& data)
+{
+    auto requestSize = sizeof(KCProtocols::REQUEST_SET_INFORMATION_PROCESS) + data.size();
+    std::unique_ptr<BYTE[]> buffer = std::make_unique<BYTE[]>(requestSize);
+    auto request = (KCProtocols::REQUEST_SET_INFORMATION_PROCESS*)buffer.get();
+    KCProtocols::RESPONSE_SET_INFORMATION_PROCESS response = {};
+    request->kernelModeHandle = kernelModeHandle;
+    request->processInformationClass = processInfoClass;
+    request->processInformationLength = data.size();
+    memcpy(request->processInformation, &data[0], data.size());
+    DWORD bytesReturned = 0;
+    if (!DeviceIoControl(driverHandle, CC_SET_INFORMATION_PROCESS, request, requestSize, &response, sizeof(response), &bytesReturned, 0))
+    {
+        Common::ThrowException("Call to NtSetInformationProcess() failed.");
+    }
+    return ;
 }
 
 DWORD KernelAccess::CreateRemoteThread(DWORD pid, void* addr, void* param, DWORD flag)

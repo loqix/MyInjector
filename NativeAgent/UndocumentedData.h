@@ -6,7 +6,15 @@ struct PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION
     PVOID Callback;
 };
 
+// For driver use
+// We assume driver module is always 64bit
+struct PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION_64
+{
+    UINT64 Callback;
+};
+
 // Since Windows 10
+// Currently not used, crash on Win10 Wow64
 struct PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION_EX
 {
     ULONG Version;

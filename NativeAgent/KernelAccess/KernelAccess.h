@@ -24,6 +24,29 @@ public:
     DWORD WriteProcessMemory(DWORD pid, void* addr, const std::vector<BYTE>& data);
 
     /// <summary>
+    /// OpenProcess like the win32 api
+    /// </summary>
+    /// <param name="pid"></param>
+    /// <param name="access"></param>
+    /// <returns>return a kernel handle</returns>
+    UINT64 OpenProcess(DWORD pid, DWORD access);
+
+    /// <summary>
+    /// Close the handle
+    /// </summary>
+    /// <param name="h"></param>
+    void CloseHandle(UINT64 h);
+
+    /// <summary>
+    /// Just like the win32 api
+    /// </summary>
+    /// <param name="process">use a kernel handle by calling KernelAccesss::OpenProcess</param>
+    /// <param name="processInfoClass"></param>
+    /// <param name="data"></param>
+    /// <param name="len"></param>
+    void SetInformationProcess(UINT64 process, DWORD processInfoClass, const std::vector<BYTE>& data);
+
+    /// <summary>
     /// 
     /// </summary>
     /// <param name="pid"></param>

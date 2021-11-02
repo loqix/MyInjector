@@ -151,35 +151,13 @@ public:
         {
             Common::Print("[!] Set privilege failed(Did you run this program as administrator?)");
         }
-
-#ifdef _WIN64
-        bool is64 = true;
-#else
-        bool is64 = false;
-#endif
-        DWORD winVer = 0;
-        Common::GetWindowsVersion(winVer);
-        if (winVer >= 10)
+        PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION info = {};
+        info.Callback = target;
+        auto ret = NtSetInformationProcess(handle, (PROCESS_INFORMATION_CLASS)ProcessInstrumentationCallback, &info, sizeof(info));
+        if (ret != 0)
         {
-            PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION_EX info = {};
-            info.Callback = target;
-            info.Version = is64 ? 0 : 1;
-            auto ret = NtSetInformationProcess(handle, (PROCESS_INFORMATION_CLASS)ProcessInstrumentationCallback, &info, sizeof(info));
-            if (ret != 0)
-            {
-                Common::ThrowException("NtSetInformationProcess failed with %d, last error: %d", ret, GetLastError());
-            }
-        }
-        else  // TODO: test on win7 and win8
-        {
-            PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION info = {};
-            info.Callback = target;
-            auto ret = NtSetInformationProcess(handle, (PROCESS_INFORMATION_CLASS)ProcessInstrumentationCallback, &info, sizeof(info));
-            if (ret != 0)
-            {
-                Common::ThrowException("NtSetInformationProcess failed with %d, last error: %d", ret, GetLastError());
-            }
-        }
+            Common::ThrowException("NtSetInformationProcess failed with %d, last error: %d", ret, GetLastError());
+        }  
     }
 
     virtual DWORD GetProcessId() override
@@ -279,7 +257,12 @@ public:
 
     virtual void SetProcessInstrumentCallback(void* target) override
     {
-        throw std::exception("Not implemented");
+        // TODO: prevent kernel handle leak
+        auto kernelHandle = ka.OpenProcess(GetProcessId(), PROCESS_ALL_ACCESS);
+        PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION_64 info = {};
+        info.Callback = (UINT64)target;
+        ka.SetInformationProcess(kernelHandle, ProcessInstrumentationCallback, std::vector((BYTE*)&info, (BYTE*)(&info + 1)));       
+        ka.CloseHandle(kernelHandle);
         return;
     }
 
@@ -308,7 +291,6 @@ public:
     {
         return true;
     }
-
 
     KernelProcessAccess(DWORD pid)
     {
